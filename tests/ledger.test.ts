@@ -96,6 +96,39 @@ describe("ledger", () => {
     expect(again).toMatchObject({ ok: false, error: "bad_reserve" });
   });
 
+  it("charges a reservation that lapsed last month to last month, not the new one", () => {
+    const begun = begin(emptyState(NOW), input({ reserveNanoEur: 900 })).state;
+    const december = Date.UTC(2026, 11, 5);
+    const view = status(begun, { now: december, limits: LIMITS }).result;
+    expect(view).toMatchObject({ month: "2026-12", spentNanoEur: 0, reservedNanoEur: 0 });
+  });
+
+  it("keeps the month and its spend when a call arrives stamped just before midnight", () => {
+    const december = Date.UTC(2026, 11, 1, 0, 0, 1);
+    const begun = begin(emptyState(december), input({ now: december, reservationId: "a" }));
+    const spent = settle(begun.state, { now: december, reservationId: "a", actualNanoEur: 800 });
+    const stale = status(spent.state, { now: december - 2000, limits: LIMITS }).result;
+    expect(stale).toMatchObject({ month: "2026-12", spentNanoEur: 800 });
+  });
+
+  it("remembers the newest two thousand lapsed reservations and lets the older charge stand", () => {
+    const wide = { ...LIMITS, poolNanoEur: 1_000_000 };
+    const open = (state: LedgerState, index: number): LedgerState =>
+      begin(
+        state,
+        input({ reservationId: `r${String(index)}`, skipNetworkLimit: true, limits: wide }),
+      ).state;
+    const full = Array.from({ length: 2001 }, (_unused, index) => index).reduce(
+      open,
+      emptyState(NOW),
+    );
+    const later = NOW + 3 * MINUTE;
+    const oldest = settle(full, { now: later, reservationId: "r0", actualNanoEur: 0 }).state;
+    const newest = settle(full, { now: later, reservationId: "r2000", actualNanoEur: 0 }).state;
+    expect(oldest.spentNanoEur).toBe(2001 * 100);
+    expect(newest.spentNanoEur).toBe(2000 * 100);
+  });
+
   it("carries a run that is still open into the next month's pool", () => {
     const lastMinute = Date.UTC(2026, 10, 30, 23, 59, 30);
     const begun = begin(emptyState(lastMinute), input({ now: lastMinute, reservationId: "a" }));

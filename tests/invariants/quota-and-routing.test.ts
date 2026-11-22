@@ -66,14 +66,13 @@ describe("message quota invariants", () => {
   });
 });
 
+const shares = fc.oneof(fc.constantFrom(0, 1), fc.double({ min: 0, max: 1, noNaN: true }));
 const usages = fc.record({
   promptChars: fc.integer({ min: 0, max: 2_000_000 }),
   maxOutputTokens: fc.integer({ min: 0, max: 64_000 }),
-  cut: fc.tuple(
-    fc.double({ min: 0, max: 1, noNaN: true }),
-    fc.double({ min: 0, max: 1, noNaN: true }),
-  ),
-  share: fc.double({ min: 0, max: 1, noNaN: true }),
+  used: shares,
+  written: shares,
+  read: shares,
   usdPerEur: fc.double({ min: 0.5, max: 2, noNaN: true }),
 });
 
@@ -81,15 +80,14 @@ describe("reservation price", () => {
   it("covers any real usage that stays within the estimated tokens, on every candidate model", () => {
     fc.assert(
       fc.property(usages, fc.constantFrom("fast" as const, "balanced" as const), (drawn, tier) => {
-        const worst = worstCaseUsage(drawn);
-        const prompt = Math.floor(worst.input * drawn.share);
-        const cacheWrite = Math.floor(prompt * Math.min(...drawn.cut));
-        const cacheRead = Math.floor((prompt - cacheWrite) * Math.max(...drawn.cut));
+        const prompt = Math.floor(worstCaseUsage(drawn).input * drawn.used);
+        const cacheWrite = Math.floor(prompt * drawn.written);
+        const cacheRead = Math.floor((prompt - cacheWrite) * drawn.read);
         const usage: Usage = {
           input: prompt - cacheWrite - cacheRead,
           cacheWrite,
           cacheRead,
-          output: Math.floor(drawn.maxOutputTokens * drawn.share),
+          output: Math.floor(drawn.maxOutputTokens * drawn.used),
         };
         const reserved = reserveNanoEur(drawn, candidatesFor(tier), drawn.usdPerEur);
         for (const model of candidatesFor(tier)) {

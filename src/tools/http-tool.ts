@@ -12,6 +12,7 @@ export interface HttpToolOptions {
 const PLACEHOLDER = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
 const SAFE_VALUE = /^[A-Za-z0-9._-]{1,100}$/;
 const AUTHORITY = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i;
+const ENCODED_DOT = /%2e/gi;
 const TIMEOUT_MS = 5000;
 const BYTES_PER_CHAR = 4;
 
@@ -34,7 +35,8 @@ const fill = (template: string, input: Record<string, unknown>): string | null =
 
 const hasDotSegment = (filled: string): boolean => {
   const [path = ""] = filled.replace(AUTHORITY, "").split(/[?#]/);
-  return path.split("/").some((segment) => segment === "." || segment === "..");
+  const segments = path.replaceAll(ENCODED_DOT, ".").split("/");
+  return segments.some((segment) => segment === "." || segment === "..");
 };
 
 export const resolveUrl = (
@@ -67,7 +69,7 @@ const readCapped = async (response: Response, maxBytes: number): Promise<string>
     text += decoder.decode(chunk.value, { stream: true });
   }
   await reader.cancel();
-  return text;
+  return text + decoder.decode();
 };
 
 export const runHttpTool = async (

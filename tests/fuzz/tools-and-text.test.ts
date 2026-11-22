@@ -81,6 +81,8 @@ describe("fetch tool under hostile arguments", () => {
     expect(resolveUrl(template, { id: ".", part: "1" }, ALLOWED)).toBeNull();
     expect(resolveUrl(template, { id: "..", part: "1" }, ALLOWED)).toBeNull();
     expect(resolveUrl("https://api.example.test/v1/.{id}/x", { id: "." }, ALLOWED)).toBeNull();
+    expect(resolveUrl("https://api.example.test/v1/%2e{id}/x", { id: "." }, ALLOWED)).toBeNull();
+    expect(resolveUrl("https://api.example.test/v1/%2E/{id}", { id: "a" }, ALLOWED)).toBeNull();
     expect(resolveUrl(template, { id: "a.b", part: "1" }, ALLOWED)?.pathname).toBe(
       "/v1/guides/a.b/parts/1",
     );
@@ -96,10 +98,14 @@ describe("fetch tool under hostile arguments", () => {
       fc.asyncProperty(sizes, async ({ maxChars, chunkBytes, unit }) => {
         const chunk = new TextEncoder().encode(unit.repeat(chunkBytes));
         let sent = 0;
+        let cancelled = false;
         const endless = new ReadableStream<Uint8Array>({
           pull: (controller) => {
             sent += chunk.byteLength;
             controller.enqueue(chunk);
+          },
+          cancel: () => {
+            cancelled = true;
           },
         });
         const fetcher: typeof fetch = () => Promise.resolve(new Response(endless));
@@ -113,6 +119,7 @@ describe("fetch tool under hostile arguments", () => {
           },
         );
         expect(output.isError).toBe(false);
+        expect(cancelled).toBe(true);
         expect(output.content.length).toBeLessThanOrEqual(maxChars);
         expect(sent).toBeLessThanOrEqual(maxChars * 4 + 3 * chunk.byteLength);
       }),
@@ -199,7 +206,7 @@ describe("gated stream under hostile model output", () => {
 
   it("treats a reply padded past the head limit the same whole or in pieces", () => {
     const reply = `${" ".repeat(300)}{"on_topic":true,"answer":"shown"}`;
-    expect(streamed([reply])).toBe(streamed(splitAt(reply, [0.5])));
+    expect(streamed([reply])).toBe(streamed(splitAt(reply, [0.8])));
   });
 
   it("releases the same text however the provider cuts the stream", () => {

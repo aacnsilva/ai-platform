@@ -95,9 +95,9 @@ const total = (reservations: readonly Reservation[]): number =>
   reservations.reduce((sum, reservation) => sum + reservation.nanoEur, 0);
 
 const rollover = (state: LedgerState, now: number): LedgerState =>
-  state.month === monthKey(now)
-    ? state
-    : { ...emptyState(now), reservations: state.reservations, ips: state.ips };
+  monthKey(now) > state.month
+    ? { ...emptyState(now), reservations: state.reservations, ips: state.ips }
+    : state;
 
 const newestHit = (hits: readonly number[]): number => Math.max(...hits);
 
@@ -115,19 +115,22 @@ const isLive = (reservation: Reservation, now: number): boolean =>
 const isRemembered = (reservation: Reservation, now: number): boolean =>
   now - reservation.at <= RESERVATION_TTL_MS + LAPSED_TTL_MS;
 
-const sweep = (state: LedgerState, now: number): LedgerState => {
-  const current = rollover(state, now);
-  const expired = current.reservations.filter((reservation) => !isLive(reservation, now));
-  const lapsed = [...lapsedOf(current), ...expired]
+const lapse = (state: LedgerState, now: number): LedgerState => {
+  const expired = state.reservations.filter((reservation) => !isLive(reservation, now));
+  const lapsed = [...lapsedOf(state), ...expired]
     .filter((reservation) => isRemembered(reservation, now))
     .slice(-MAX_LAPSED);
   return {
-    ...current,
-    spentNanoEur: current.spentNanoEur + total(expired),
-    reservations: current.reservations.filter((reservation) => isLive(reservation, now)),
+    ...state,
+    spentNanoEur: state.spentNanoEur + total(expired),
+    reservations: state.reservations.filter((reservation) => isLive(reservation, now)),
     lapsed,
-    ips: freshIps(current.ips, now),
   };
+};
+
+const sweep = (state: LedgerState, now: number): LedgerState => {
+  const current = rollover(lapse(state, now), now);
+  return { ...current, ips: freshIps(current.ips, now) };
 };
 
 export const reservedNanoEur = (state: LedgerState): number => total(state.reservations);
@@ -242,7 +245,7 @@ const close = (previous: LedgerState, reservationId: string, now: number): Closi
 
 const spending = (state: LedgerState, change: number): LedgerState => ({
   ...state,
-  spentNanoEur: Math.max(0, state.spentNanoEur + change),
+  spentNanoEur: state.spentNanoEur + change,
 });
 
 export const settle = (previous: LedgerState, input: SettleInput): Step<null> => {

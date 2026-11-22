@@ -240,15 +240,37 @@ describe("ledger invariants", () => {
     );
   });
 
-  it("carries open reservations into the next month and nothing else", () => {
+  it("starts a month with only the reservations still held at that moment, and nothing spent", () => {
     fc.assert(
       fc.property(ops(3), fc.integer({ min: 0, max: 40 * DAY }), (sequence, later) => {
         let last = emptyState(MONTH_START);
         play(sequence, (state) => {
           last = state;
         });
-        const rolled = status(last, { now: NEXT_MONTH + later, limits: LIMITS }).state;
-        expect(rolled.spentNanoEur + reservedNanoEur(rolled)).toBe(reservedNanoEur(last));
+        const now = NEXT_MONTH + later;
+        const held = last.reservations
+          .filter((reservation) => now - reservation.at <= RESERVATION_TTL_MS)
+          .reduce((sum, reservation) => sum + reservation.nanoEur, 0);
+        const rolled = status(last, { now, limits: LIMITS }).state;
+        expect(rolled.spentNanoEur).toBe(0);
+        expect(reservedNanoEur(rolled)).toBe(held);
+        expect(lapsedOf(rolled)).toEqual([]);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("never lets a late clock reopen a month that has ended", () => {
+    fc.assert(
+      fc.property(ops(3), fc.integer({ min: 1, max: 5 * DAY }), (sequence, back) => {
+        let last = emptyState(MONTH_START);
+        play(sequence, (state) => {
+          last = state;
+        });
+        const december = status(last, { now: NEXT_MONTH + DAY, limits: LIMITS }).state;
+        const stale = status(december, { now: NEXT_MONTH - back, limits: LIMITS }).state;
+        expect(stale.month).toBe("2026-12");
+        expect(stale.spentNanoEur).toBeGreaterThanOrEqual(december.spentNanoEur);
       }),
       { numRuns: 300 },
     );

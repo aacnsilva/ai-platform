@@ -26,16 +26,16 @@ checked on every run and not only when the generator finds it again.
 
 ### State machines, `tests/invariants/`
 
-| Module                 | Rule                                                                                                                                                                               |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/quota/ledger.ts`  | Spent and reserved always equal a plain account of what was reserved, settled, released and lapsed. Settle and release are idempotent. Ids are unique. Network limits hold.        |
-| `src/quota/ledger.ts`  | Spent plus reserved never exceeds the pool plus what settled runs cost above their reservation; with no run more than 5% above its reservation, never more than 5% above the pool. |
-| `src/quota/ledger.ts`  | A new month starts with exactly the reservations that were still open, and nothing else.                                                                                           |
-| `src/llm/cost.ts`      | The reservation covers any real usage within the estimated tokens, on every candidate model, however the prompt splits between plain, cache-write and cache-read tokens.           |
-| `src/sessions/turn.ts` | Only the lease holder changes a session. One turn at a time. The owner never changes. The count never falls. A key that committed never runs again while it is remembered.         |
-| `src/quota/subject.ts` | The count never passes the limit, and a refund puts back exactly what the grant took.                                                                                              |
-| `src/llm/breaker.ts`   | A model is always offered, in the configured order, and an open one is skipped whenever another is closed.                                                                         |
-| `src/authn/device.ts`  | A challenge is handed out once and expires. A counter is accepted only if it grows.                                                                                                |
+| Module                 | Rule                                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/quota/ledger.ts`  | Spent and reserved always equal a plain account of what was reserved, settled, released and lapsed. Settle and release are idempotent. Ids are unique. Network limits hold.                                                       |
+| `src/quota/ledger.ts`  | Spent plus reserved never exceeds the pool plus what settled runs cost above their reservation; with no run more than 5% above its reservation, never more than 5% above the pool.                                                |
+| `src/quota/ledger.ts`  | A new month starts with nothing spent and only the reservations still held at that moment. A reservation that lapsed is charged to the month it was made in. A call stamped before midnight never reopens a month that has ended. |
+| `src/llm/cost.ts`      | The reservation covers any real usage within the estimated tokens, on every candidate model, however the prompt splits between plain, cache-write and cache-read tokens.                                                          |
+| `src/sessions/turn.ts` | Only the lease holder changes a session. One turn at a time. The owner never changes. The count never falls. A key that committed never runs again while it is remembered.                                                        |
+| `src/quota/subject.ts` | The count never passes the limit, and a refund puts back exactly what the grant took.                                                                                                                                             |
+| `src/llm/breaker.ts`   | A model is always offered, in the configured order, and an open one is skipped whenever another is closed.                                                                                                                        |
+| `src/authn/device.ts`  | A challenge is handed out once and expires. A counter is accepted only if it grows.                                                                                                                                               |
 
 ### Parsers under hostile input, `tests/fuzz/`
 
@@ -69,6 +69,15 @@ stops part-way, and checks a rule at every state it reaches.
 - Anything about the Workers runtime, Durable Object storage, WebCrypto or the provider.
 - That the model stays on topic or resists an instruction hidden in a document. That is bounded by
   the mechanisms these suites check: allowed hosts, pinned tools, quotas, the gate.
+- The pool bound outside its conditions. It holds within one month, for runs that settle within
+  the hour after their two-minute hold. A settlement that arrives later than that, after more than
+  two thousand other reservations lapsed, or for a reservation made before this ledger was deployed,
+  charges nothing beyond the reserve already counted, so a cost above the reserve is not recorded.
+- Clocks that disagree. The ledger takes the time from the worker that calls it. A month never
+  reopens, but a worker whose clock ran more than two minutes ahead would lapse live reservations
+  early and refuse on `budget` until they settle. The orderings are explored on one clock.
+- That the ledger's reference account is independent of it: it shares the hold and remember
+  durations with the code, so a wrong duration would go unnoticed here.
 - The pool bound when a run costs more than 5% above its reservation. The reservation assumes three
   characters per token; text that tokenises more densely than that can cost more than was reserved.
   Look at `spentNanoEur` against `poolNanoEur` on the dashboard after a tenant's first busy month.

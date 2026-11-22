@@ -22,7 +22,8 @@ npx vitest run --config e2e/vitest.config.ts quota
 - A reservation nobody settled within two minutes is counted as spent at its reserve, corrected to
   the real cost if the run settles within the hour after, and never freed for another run.
 - A settlement that arrives twice, or for a reservation that is unknown, charges nothing more.
-- A run still open at the end of the month is held against the next month's pool.
+- A run still held at the end of the month is held against the next month's pool; one that lapsed
+  is charged to the month it was made in.
 - The reserve prices the prompt at the cache-write rate, the dearest a prompt token can be.
 - A failure before the model wrote anything gives the reservation back; a timeout or a stream
   that broke after it began is counted at the reserved worst case.

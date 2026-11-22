@@ -114,6 +114,13 @@ describe("cbor decoder under hostile bytes", () => {
   });
 });
 
+it("reads sixteen levels of nesting and refuses the seventeenth", () => {
+  const nestedTo = (levels: number): Buffer =>
+    Buffer.concat([Buffer.alloc(levels, 0x81), Buffer.from([0x00])]);
+  expect(formatOnly(() => decodeCbor(nestedTo(16)))).not.toBe("format");
+  expect(formatOnly(() => decodeCbor(nestedTo(17)))).toBe("format");
+});
+
 describe("der reader under hostile bytes", () => {
   it("never reads outside the buffer", () => {
     fc.assert(
