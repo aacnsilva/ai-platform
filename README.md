@@ -1,12 +1,14 @@
 # agent-runtime
 
-A multi-tenant agent runtime, built to learn how each module works and to reuse across projects.
+A multi-tenant agent runtime. It runs in production behind several products: each product is a tenant with its own callers, limits, tools and knowledge, and none of them shares state with another.
 
-It is TypeScript on Cloudflare Workers, with Durable Objects for state. Everything runs and is tested locally; nothing here has been deployed or run against a real model provider yet.
+It is TypeScript on Cloudflare Workers, with Durable Objects for state. The runtime holds the mechanisms; everything specific to a product lives in that product's tenant document, outside this repository.
 
-## Status
+Because live products depend on it, a change is held to three things before it ships: `npm run check` passes, the change has its own verification (see [Working in this repository](#working-in-this-repository)), and it has run on the development deployment first.
 
-| Part          | Built                                                                                                                                                                                       | Not yet                                                       |
+## What it does
+
+| Part          | Does                                                                                                                                                                                        | Does not do yet                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | Gateway       | Tenant routing, three authenticators (anonymous by allowed origin, signed account token, attested device with a store purchase), plans and entitlement, CORS, input validation, admin token | Per-user admin accounts                                       |
 | Quota         | Per-network limits, a monthly pool per tenant in EUR with reserve and settle, monthly messages per subject by plan                                                                          | Metering embedding calls                                      |
@@ -62,7 +64,7 @@ You need a Cloudflare account. Log in once:
 npx wrangler login
 ```
 
-Deploy development first, and use it for anything unreleased and for eval runs:
+Deploy development first, and use it for anything unreleased and for eval runs. Production serves live products, so a change goes there only after it has run on development:
 
 ```bash
 npm run deploy:dev
@@ -106,11 +108,12 @@ npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put ANTHROPIC_API_KEY
 ```
 
-Before real traffic:
+What production relies on:
 
 - **Use a different admin token and a different model-provider key for each deployment.** Give each key its own spend limit at the provider, so there is a hard stop outside the runtime as well as the tenant pools inside it.
 - **Restrict `/admin`.** The admin pages and API are protected by the admin token alone. Put an access policy in front of `/admin*`, such as Cloudflare Access, so only the people who should can reach them at all.
 - **Keep eval runs on development.** A tenant with an `evals` block lets whoever holds its secret spend from its pool.
+- **A deploy reaches every tenant at once.** There is one production Worker, and stored state (pools, sessions, quotas) outlives the code that wrote it. A change to a stored shape must read what the previous version stored.
 - **A tenant belongs to one deployment.** Push a product's test tenant to development and its real one to production; nothing is copied between them.
 - **Watch CPU time.** The free Workers plan allows 10 ms of CPU per request. Verifying a device attestation or a store purchase has not been measured against that; the paid plan removes the concern.
 
@@ -180,7 +183,15 @@ A client that runs its own tools, such as a mobile app's test target, can use th
 
 ## Working in this repository
 
-`CLAUDE.md` has the ground rules: no comments in code, strict compiler and lint settings, and every feature ships with unit tests, an end-to-end spec and a verification skill in `.claude/skills/`.
+`CLAUDE.md` has the ground rules: no comments in code, strict compiler and lint settings, nothing product-specific in `src/`, and every feature ships with unit tests, an end-to-end spec and a verification skill in `.claude/skills/`.
+
+Three generated suites back the parts that money and access depend on, and run in `npm run check`:
+
+- `tests/invariants/` plays random sequences of operations against the pool, sessions, quotas, pricing and the circuit breaker, and checks rules that must hold after every step.
+- `tests/fuzz/` feeds hostile bytes and text to every parser of outside input: attestations, purchases, tokens, request bodies, fetch-tool arguments and the gated stream.
+- `tests/interleavings/` walks every ordering of concurrent requests, retries, crashes and expired holds.
+
+`.claude/skills/verify-invariants/` lists each rule, what the suites do not prove, and how to add a rule for a new state machine or parser.
 
 ## How it works
 
