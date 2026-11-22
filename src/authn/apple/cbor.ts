@@ -8,6 +8,8 @@ export interface CborItem {
   readonly offset: number;
 }
 
+const MAX_DEPTH = 16;
+
 interface CborHeader {
   readonly length: number;
   readonly offset: number;
@@ -45,12 +47,12 @@ const readString = (buf: Buffer, header: CborHeader, major: number): CborItem =>
   return { value: major === 2 ? Buffer.from(slice) : slice.toString("utf8"), offset: end };
 };
 
-const readArray = (buf: Buffer, header: CborHeader): CborItem => {
+const readArray = (buf: Buffer, header: CborHeader, depth: number): CborItem => {
   const items: CborValue[] = [];
   let cursor = header.offset;
   let remaining = header.length;
   while (remaining > 0) {
-    const item = readCbor(buf, cursor);
+    const item = readNested(buf, cursor, depth);
     items.push(item.value);
     cursor = item.offset;
     remaining -= 1;
@@ -58,13 +60,13 @@ const readArray = (buf: Buffer, header: CborHeader): CborItem => {
   return { value: items, offset: cursor };
 };
 
-const readMap = (buf: Buffer, header: CborHeader): CborItem => {
+const readMap = (buf: Buffer, header: CborHeader, depth: number): CborItem => {
   const map = new Map<CborValue, CborValue>();
   let cursor = header.offset;
   let remaining = header.length;
   while (remaining > 0) {
-    const key = readCbor(buf, cursor);
-    const value = readCbor(buf, key.offset);
+    const key = readNested(buf, cursor, depth);
+    const value = readNested(buf, key.offset, depth);
     map.set(key.value, value.value);
     cursor = value.offset;
     remaining -= 1;
@@ -72,17 +74,27 @@ const readMap = (buf: Buffer, header: CborHeader): CborItem => {
   return { value: map, offset: cursor };
 };
 
-const readContainer = (buf: Buffer, header: CborHeader, major: number): CborItem => {
+interface Container {
+  header: CborHeader;
+  major: number;
+  depth: number;
+}
+
+const readContainer = (buf: Buffer, container: Container): CborItem => {
+  const { header, major, depth } = container;
   if (major === 4) {
-    return readArray(buf, header);
+    return readArray(buf, header, depth);
   }
   if (major === 5) {
-    return readMap(buf, header);
+    return readMap(buf, header, depth);
   }
   throw new AppleFormatError("cbor_unsupported");
 };
 
-export function readCbor(buf: Buffer, offset: number): CborItem {
+function readNested(buf: Buffer, offset: number, depth: number): CborItem {
+  if (depth > MAX_DEPTH) {
+    throw new AppleFormatError("cbor_depth");
+  }
   requireBytes(buf, offset + 1);
   const initial = buf.readUInt8(offset);
   const major = initial >> 5;
@@ -96,8 +108,10 @@ export function readCbor(buf: Buffer, offset: number): CborItem {
   if (major === 2 || major === 3) {
     return readString(buf, header, major);
   }
-  return readContainer(buf, header, major);
+  return readContainer(buf, { header, major, depth: depth + 1 });
 }
+
+export const readCbor = (buf: Buffer, offset: number): CborItem => readNested(buf, offset, 0);
 
 export const decodeCbor = (bytes: Uint8Array): CborValue => {
   const buf = Buffer.from(bytes);

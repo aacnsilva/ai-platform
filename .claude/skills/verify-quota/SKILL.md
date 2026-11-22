@@ -9,6 +9,7 @@ description: Verify limits and money - per-network limits, the monthly pool per 
 
 ```bash
 npx vitest run tests/ledger.test.ts tests/cost.test.ts tests/run.test.ts
+npx vitest run tests/invariants/ledger.test.ts tests/interleavings/pool.test.ts
 npx vitest run --config e2e/vitest.config.ts quota
 ```
 
@@ -18,6 +19,11 @@ npx vitest run --config e2e/vitest.config.ts quota
 - A network over its hourly limit gets 429 with `Retry-After`, and the provider is never called.
 - A pool that cannot cover the next reservation refuses with `budget` until the next UTC month.
 - Reservations count against the pool, so concurrent runs cannot overshoot it.
+- A reservation nobody settled within two minutes is counted as spent at its reserve, corrected to
+  the real cost if the run settles within the hour after, and never freed for another run.
+- A settlement that arrives twice, or for a reservation that is unknown, charges nothing more.
+- A run still open at the end of the month is held against the next month's pool.
+- The reserve prices the prompt at the cache-write rate, the dearest a prompt token can be.
 - A failure before the model wrote anything gives the reservation back; a timeout or a stream
   that broke after it began is counted at the reserved worst case.
 - One tenant's limits never touch another tenant.

@@ -17,12 +17,20 @@ const unauthorized = (): never => {
   throw new Rejection(401, "bad_token");
 };
 
-const fromBase64Url = (text: string): Uint8Array => {
+const fromBase64Url = (text: string): Uint8Array<ArrayBuffer> => {
   const padded = text
     .replaceAll("-", "+")
     .replaceAll("_", "/")
     .padEnd(Math.ceil(text.length / 4) * 4, "=");
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+};
+
+const signatureBytes = (part: string): Uint8Array<ArrayBuffer> => {
+  try {
+    return fromBase64Url(part);
+  } catch {
+    return unauthorized();
+  }
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -101,7 +109,7 @@ export const verifyAccountToken = async (
   const valid = await crypto.subtle.verify(
     { name: "ECDSA", hash: "SHA-256" },
     key,
-    fromBase64Url(signature),
+    signatureBytes(signature),
     new TextEncoder().encode(`${head}.${body}`),
   );
   return valid ? claimsOf(decodeJson(body), authn, now) : unauthorized();

@@ -2,6 +2,7 @@ export type AppleFormatErrorCode =
   | "der_truncated"
   | "der_length"
   | "cbor_truncated"
+  | "cbor_depth"
   | "cbor_unsupported"
   | "cbor_trailing"
   | "cbor_int"

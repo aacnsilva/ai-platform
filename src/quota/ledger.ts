@@ -1,7 +1,9 @@
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const RESERVATION_TTL_MS = 2 * 60 * 1000;
+export const RESERVATION_TTL_MS = 2 * 60 * 1000;
+export const LAPSED_TTL_MS = HOUR_MS;
 const MAX_TRACKED_IPS = 2000;
+const MAX_LAPSED = 2000;
 
 export interface Reservation {
   id: string;
@@ -13,6 +15,7 @@ export interface LedgerState {
   month: string;
   spentNanoEur: number;
   reservations: Reservation[];
+  lapsed?: Reservation[];
   ips: Record<string, number[]>;
 }
 
@@ -82,14 +85,19 @@ export const emptyState = (now: number): LedgerState => ({
   month: monthKey(now),
   spentNanoEur: 0,
   reservations: [],
+  lapsed: [],
   ips: {},
 });
 
-export const reservedNanoEur = (state: LedgerState): number =>
-  state.reservations.reduce((total, reservation) => total + reservation.nanoEur, 0);
+export const lapsedOf = (state: LedgerState): Reservation[] => state.lapsed ?? [];
+
+const total = (reservations: readonly Reservation[]): number =>
+  reservations.reduce((sum, reservation) => sum + reservation.nanoEur, 0);
 
 const rollover = (state: LedgerState, now: number): LedgerState =>
-  state.month === monthKey(now) ? state : { ...emptyState(now), ips: state.ips };
+  state.month === monthKey(now)
+    ? state
+    : { ...emptyState(now), reservations: state.reservations, ips: state.ips };
 
 const newestHit = (hits: readonly number[]): number => Math.max(...hits);
 
@@ -101,16 +109,28 @@ const freshIps = (ips: LedgerState["ips"], now: number): LedgerState["ips"] => {
   return Object.fromEntries(kept.slice(-MAX_TRACKED_IPS));
 };
 
+const isLive = (reservation: Reservation, now: number): boolean =>
+  now - reservation.at <= RESERVATION_TTL_MS;
+
+const isRemembered = (reservation: Reservation, now: number): boolean =>
+  now - reservation.at <= RESERVATION_TTL_MS + LAPSED_TTL_MS;
+
 const sweep = (state: LedgerState, now: number): LedgerState => {
   const current = rollover(state, now);
+  const expired = current.reservations.filter((reservation) => !isLive(reservation, now));
+  const lapsed = [...lapsedOf(current), ...expired]
+    .filter((reservation) => isRemembered(reservation, now))
+    .slice(-MAX_LAPSED);
   return {
     ...current,
-    reservations: current.reservations.filter(
-      (reservation) => now - reservation.at <= RESERVATION_TTL_MS,
-    ),
+    spentNanoEur: current.spentNanoEur + total(expired),
+    reservations: current.reservations.filter((reservation) => isLive(reservation, now)),
+    lapsed,
     ips: freshIps(current.ips, now),
   };
 };
+
+export const reservedNanoEur = (state: LedgerState): number => total(state.reservations);
 
 const refuse = (error: RefusalCode, retryAfterSeconds: number): Refusal => ({
   ok: false,
@@ -148,6 +168,11 @@ const poolRefusal = (state: LedgerState, input: BeginInput): Refusal | null => {
     : null;
 };
 
+const isKnown = (state: LedgerState, reservationId: string): boolean =>
+  [...state.reservations, ...lapsedOf(state)].some(
+    (reservation) => reservation.id === reservationId,
+  );
+
 const isPositiveAmount = (value: number): boolean => Number.isSafeInteger(value) && value > 0;
 
 export interface NetworkInput {
@@ -174,7 +199,7 @@ export const noteNetwork = (previous: LedgerState, input: NetworkInput): Step<Be
 
 export const begin = (previous: LedgerState, input: BeginInput): Step<BeginResult> => {
   const state = sweep(previous, input.now);
-  if (!isPositiveAmount(input.reserveNanoEur)) {
+  if (!isPositiveAmount(input.reserveNanoEur) || isKnown(state, input.reservationId)) {
     return { state, result: refuse("bad_reserve", 60) };
   }
   const hits = state.ips[input.ip] ?? [];
@@ -194,26 +219,48 @@ export const begin = (previous: LedgerState, input: BeginInput): Step<BeginResul
   };
 };
 
-const without = (state: LedgerState, reservationId: string): Reservation[] =>
-  state.reservations.filter((reservation) => reservation.id !== reservationId);
+interface Closing {
+  state: LedgerState;
+  held: Reservation | undefined;
+  charged: Reservation | undefined;
+}
 
-export const settle = (previous: LedgerState, input: SettleInput): Step<null> => {
-  const state = sweep(previous, input.now);
-  const actual =
-    Number.isSafeInteger(input.actualNanoEur) && input.actualNanoEur >= 0 ? input.actualNanoEur : 0;
+const close = (previous: LedgerState, reservationId: string, now: number): Closing => {
+  const state = sweep(previous, now);
+  const isOther = (reservation: Reservation): boolean => reservation.id !== reservationId;
+  const isIt = (reservation: Reservation): boolean => reservation.id === reservationId;
   return {
     state: {
       ...state,
-      reservations: without(state, input.reservationId),
-      spentNanoEur: state.spentNanoEur + actual,
+      reservations: state.reservations.filter(isOther),
+      lapsed: lapsedOf(state).filter(isOther),
     },
+    held: state.reservations.find(isIt),
+    charged: lapsedOf(state).find(isIt),
+  };
+};
+
+const spending = (state: LedgerState, change: number): LedgerState => ({
+  ...state,
+  spentNanoEur: Math.max(0, state.spentNanoEur + change),
+});
+
+export const settle = (previous: LedgerState, input: SettleInput): Step<null> => {
+  const { state, held, charged } = close(previous, input.reservationId, input.now);
+  const actual =
+    Number.isSafeInteger(input.actualNanoEur) && input.actualNanoEur >= 0 ? input.actualNanoEur : 0;
+  if (held !== undefined) {
+    return { state: spending(state, actual), result: null };
+  }
+  return {
+    state: charged === undefined ? state : spending(state, actual - charged.nanoEur),
     result: null,
   };
 };
 
 export const release = (previous: LedgerState, input: ReleaseInput): Step<null> => {
-  const state = sweep(previous, input.now);
-  return { state: { ...state, reservations: without(state, input.reservationId) }, result: null };
+  const { state, charged } = close(previous, input.reservationId, input.now);
+  return { state: charged === undefined ? state : spending(state, -charged.nanoEur), result: null };
 };
 
 export const status = (previous: LedgerState, input: StatusInput): Step<PoolStatus> => {

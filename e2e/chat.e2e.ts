@@ -22,6 +22,10 @@ describe("chat with tools that run on the client", () => {
   it("refuses a caller without a valid account token or an active plan", async () => {
     expect((await post(tenant.id, null, question("hi"))).body.error).toBe("missing_token");
     expect((await post(tenant.id, "not.a.token", question("hi"))).status).toBe(401);
+    const [head = "", claims = ""] = (await tokenFor(tenant, "u-forged")).split(".");
+    const unsigned = await post(tenant.id, `${head}.${claims}.!!!`, question("hi"));
+    expect(unsigned.status).toBe(401);
+    expect(unsigned.body.error).toBe("bad_token");
     const lapsed = await post(
       tenant.id,
       await tokenFor(tenant, "u-lapsed", "gold"),

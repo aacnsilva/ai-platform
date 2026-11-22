@@ -67,11 +67,43 @@ describe("ledger", () => {
     expect(refused.ips["1.1.1.1"]).toBeUndefined();
   });
 
-  it("drops a reservation that was never settled after two minutes", () => {
+  it("counts a reservation nobody settled within two minutes as spent at its reserve", () => {
     const begun = begin(emptyState(NOW), input({ reserveNanoEur: 900 })).state;
     const view = status(begun, { now: NOW + 3 * MINUTE, limits: LIMITS }).result;
-    expect(view.reservedNanoEur).toBe(0);
-    expect(view.accepting).toBe(true);
+    expect(view).toMatchObject({ reservedNanoEur: 0, spentNanoEur: 900 });
+    const refused = begin(begun, input({ now: NOW + 3 * MINUTE, reserveNanoEur: 200 })).result;
+    expect(refused).toMatchObject({ ok: false, error: "budget" });
+  });
+
+  it("corrects a lapsed reservation to the real cost when its run settles late", () => {
+    const begun = begin(emptyState(NOW), input({ reservationId: "slow", reserveNanoEur: 900 }));
+    const late = { now: NOW + 3 * MINUTE, reservationId: "slow" };
+    expect(settle(begun.state, { ...late, actualNanoEur: 40 }).state.spentNanoEur).toBe(40);
+    expect(release(begun.state, late).state.spentNanoEur).toBe(0);
+  });
+
+  it("charges a run once however often its settlement arrives", () => {
+    const begun = begin(emptyState(NOW), input({ reservationId: "a" })).state;
+    const settlement = { now: NOW, reservationId: "a", actualNanoEur: 7 };
+    const twice = settle(settle(begun, settlement).state, settlement).state;
+    expect(twice.spentNanoEur).toBe(7);
+    expect(settle(emptyState(NOW), settlement).state.spentNanoEur).toBe(0);
+  });
+
+  it("refuses a second reservation under an id that is still open", () => {
+    const begun = begin(emptyState(NOW), input({ reservationId: "a" })).state;
+    const again = begin(begun, input({ reservationId: "a", ip: "2.2.2.2" })).result;
+    expect(again).toMatchObject({ ok: false, error: "bad_reserve" });
+  });
+
+  it("carries a run that is still open into the next month's pool", () => {
+    const lastMinute = Date.UTC(2026, 10, 30, 23, 59, 30);
+    const begun = begin(emptyState(lastMinute), input({ now: lastMinute, reservationId: "a" }));
+    const december = Date.UTC(2026, 11, 1, 0, 0, 10);
+    const view = status(begun.state, { now: december, limits: LIMITS }).result;
+    expect(view).toMatchObject({ month: "2026-12", spentNanoEur: 0, reservedNanoEur: 100 });
+    const settled = settle(begun.state, { now: december, reservationId: "a", actualNanoEur: 7 });
+    expect(settled.state.spentNanoEur).toBe(7);
   });
 
   it("starts the pool again on the first of the month and keeps the network counts", () => {

@@ -22,12 +22,12 @@ describe("cost", () => {
     expect(costNanoEur(long, { model: "claude-sonnet-5-5", usdPerEur: 1 })).toBe(100_001 * 2000);
   });
 
-  it("reserves for the most expensive model the router might use", () => {
+  it("reserves for the most expensive model the router might use, with the prompt at the cache-write price", () => {
     const input = { promptChars: 3000, maxOutputTokens: 1000 };
     const fast = reserveNanoEur(input, ["claude-haiku-5-5"], 1);
     const mixed = reserveNanoEur(input, ["claude-haiku-5-5", "claude-sonnet-5-5"], 1);
-    expect(fast).toBe(1600 * 100 + 1000 * 500);
-    expect(mixed).toBe(1600 * 2000 + 1000 * 10_000);
+    expect(fast).toBe(1600 * 125 + 1000 * 500);
+    expect(mixed).toBe(1600 * 2500 + 1000 * 10_000);
   });
 
   it("converts euros to whole nano-euros", () => {

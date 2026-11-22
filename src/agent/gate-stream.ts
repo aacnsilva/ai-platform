@@ -71,7 +71,7 @@ export class GateStream {
 
   private readHead(): void {
     const match = HEAD.exec(this.buffer);
-    if (match === null) {
+    if (match === null || match[0].length > MAX_HEAD_CHARS) {
       this.phase = this.buffer.length > MAX_HEAD_CHARS ? "done" : "head";
       return;
     }

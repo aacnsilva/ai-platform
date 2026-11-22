@@ -40,10 +40,20 @@ export interface ReserveInput {
 export const CHARS_PER_TOKEN = 3;
 const REQUEST_OVERHEAD_TOKENS = 600;
 
+const worstCasePromptTokens = (input: ReserveInput): number =>
+  Math.ceil(input.promptChars / CHARS_PER_TOKEN) + REQUEST_OVERHEAD_TOKENS;
+
 export const worstCaseUsage = (input: ReserveInput): Usage => ({
-  input: Math.ceil(input.promptChars / CHARS_PER_TOKEN) + REQUEST_OVERHEAD_TOKENS,
+  input: worstCasePromptTokens(input),
   output: input.maxOutputTokens,
   cacheWrite: 0,
+  cacheRead: 0,
+});
+
+const worstCaseCachedUsage = (input: ReserveInput): Usage => ({
+  input: 0,
+  output: input.maxOutputTokens,
+  cacheWrite: worstCasePromptTokens(input),
   cacheRead: 0,
 });
 
@@ -52,4 +62,10 @@ export const reserveNanoEur = (
   models: readonly ModelId[],
   usdPerEur: number,
 ): number =>
-  Math.max(...models.map((model) => costNanoEur(worstCaseUsage(input), { model, usdPerEur })));
+  Math.max(
+    ...models.flatMap((model) =>
+      [worstCaseUsage(input), worstCaseCachedUsage(input)].map((usage) =>
+        costNanoEur(usage, { model, usdPerEur }),
+      ),
+    ),
+  );

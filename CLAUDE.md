@@ -45,6 +45,9 @@ them and must pass before a commit is pushed.
   verify it and what to look at by hand.
 - End-to-end specs use the fake provider in `e2e/support/mock-provider.ts`. They never call a
   real model.
+- A state machine ships with its invariants in `tests/invariants/`, a parser of outside input with
+  a fuzz suite in `tests/fuzz/`, and steps that requests can interleave or crash between with an
+  exploration in `tests/interleavings/`. `.claude/skills/verify-invariants/` lists the rules.
 
 ## Commands
 
