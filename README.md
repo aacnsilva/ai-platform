@@ -1,6 +1,6 @@
-# agent-runtime
+# ai-platform
 
-A multi-tenant agent runtime. It runs in production behind several products: each product is a tenant with its own callers, limits, tools and knowledge, and none of them shares state with another.
+A multi-tenant AI platform: a gateway, quotas, model routing, agents, tools, sessions, knowledge and observability in one Worker. It runs in production behind several products: each product is a tenant with its own callers, limits, tools and knowledge, and none of them shares state with another.
 
 It is TypeScript on Cloudflare Workers, with Durable Objects for state. The runtime holds the mechanisms; everything specific to a product lives in that product's tenant document, outside this repository.
 
@@ -57,6 +57,8 @@ The runtime is one Cloudflare Worker. `wrangler.jsonc` defines two deployments t
 | ----------- | -------------------- | ------------------- |
 | Development | `npm run deploy:dev` | `agent-runtime-dev` |
 | Production  | `npm run deploy`     | `agent-runtime`     |
+
+The Workers keep the project's earlier name. A Worker's stores belong to its name, so deploying under a new name would start with empty stores and a new address.
 
 You need a Cloudflare account. Log in once:
 

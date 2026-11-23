@@ -156,7 +156,7 @@ describe("the eval runner", () => {
     JSON.parse(await readFile(join(folder, "results", "latest.json"), "utf8")) as Json;
 
   beforeAll(async () => {
-    folder = await mkdtemp(join(tmpdir(), "agent-runtime-evals-"));
+    folder = await mkdtemp(join(tmpdir(), "ai-platform-evals-"));
   });
 
   it("grades a gated tenant, names what failed, and exits non-zero", async () => {
