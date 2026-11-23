@@ -35,7 +35,7 @@ const datesOk = (cert: X509Certificate, now: number): boolean => {
   );
 };
 
-const parseCertificate = (value: CertificateInput): X509Certificate => {
+const asCertificate = (value: CertificateInput): X509Certificate => {
   if (value instanceof X509Certificate) {
     return value;
   }
@@ -45,18 +45,23 @@ const parseCertificate = (value: CertificateInput): X509Certificate => {
   return new X509Certificate(Buffer.from(value));
 };
 
-const asCertificate = (value: CertificateInput): X509Certificate | null => {
+const parsePair = (input: ChainInput): CertificatePair | null => {
   try {
-    return parseCertificate(value);
+    return {
+      leaf: asCertificate(input.leafDer),
+      intermediate: asCertificate(input.intermediateDer),
+    };
   } catch {
     return null;
   }
 };
 
-const parsePair = (input: ChainInput): CertificatePair | null => {
-  const leaf = asCertificate(input.leafDer);
-  const intermediate = asCertificate(input.intermediateDer);
-  return leaf && intermediate ? { leaf, intermediate } : null;
+const parseOne = (value: CertificateInput): X509Certificate | null => {
+  try {
+    return asCertificate(value);
+  } catch {
+    return null;
+  }
 };
 
 const signedBy = (cert: X509Certificate, issuer: X509Certificate): boolean => {
@@ -97,7 +102,7 @@ export const verifyChain = (input: ChainInput): VerifiedChain | null => {
     return null;
   }
   for (const candidate of roots) {
-    const root = asCertificate(candidate);
+    const root = parseOne(candidate);
     if (root && issuedBy(pair.intermediate, root, now)) {
       return { ...pair, root };
     }

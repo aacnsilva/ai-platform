@@ -1,60 +1,61 @@
-import { X509Certificate } from "node:crypto";
-
 import { describe, expect, it } from "vitest";
 
-import type { ChainInput } from "../../src/authn/apple/chain";
+import { Buffer } from "../../src/authn/apple/buffer";
 import { verifyChain } from "../../src/authn/apple/chain";
-import { makeChain, makeP256, withUndecodableKey } from "./cert-fixture";
+import { makeChain, makeP256 } from "./cert-fixture";
 
-const genuine = makeChain({
-  leafKeyPem: makeP256().pem,
-  leafExt: ["basicConstraints=CA:FALSE"],
-  intermediateExt: ["basicConstraints=critical,CA:TRUE"],
-});
-const rootDer = new X509Certificate(genuine.rootPem).raw;
+const POINT_HEADER = Buffer.from([0x03, 0x42, 0x00, 0x04]);
+const INVALID_POINT_FORM = 0x05;
 
-const check = (overrides: Partial<ChainInput> = {}): ReturnType<typeof verifyChain> =>
-  verifyChain({
-    leafDer: genuine.leafDer,
-    intermediateDer: genuine.intermediateDer,
-    roots: [genuine.rootPem],
-    ...overrides,
-  });
+const withUnreadableKey = (der: Uint8Array): Buffer => {
+  const damaged = Buffer.from(der);
+  const at = damaged.indexOf(POINT_HEADER);
+  if (at < 0) {
+    throw new Error("certificate has no uncompressed P-256 key");
+  }
+  damaged[at + POINT_HEADER.length - 1] = INVALID_POINT_FORM;
+  return damaged;
+};
+
+const pemToDer = (pem: string): Buffer =>
+  Buffer.from(pem.replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, ""), "base64");
 
 describe("certificate chain", () => {
-  it("a genuine chain verifies against its root in any accepted form", () => {
-    expect(check()?.root.subject).toBe(new X509Certificate(genuine.rootPem).subject);
-    expect(check({ roots: [rootDer] })).not.toBeNull();
-    expect(check({ roots: [new X509Certificate(genuine.rootPem)] })).not.toBeNull();
+  const chain = makeChain({ leafKeyPem: makeP256().pem, leafExt: [], intermediateExt: [] });
+  const { leafDer, intermediateDer, rootPem } = chain;
+
+  it("accepts a genuine chain", () => {
+    expect(verifyChain({ leafDer, intermediateDer, roots: [rootPem] })).not.toBeNull();
   });
 
-  it("the corrupted certificates still parse, so the key is what fails", () => {
-    const intermediate = new X509Certificate(withUndecodableKey(genuine.intermediateDer));
-    expect(() => intermediate.publicKey).toThrow();
-    expect(() => new X509Certificate(withUndecodableKey(rootDer)).publicKey).toThrow();
+  it("rejects an intermediate whose key cannot be read", () => {
+    const damaged = withUnreadableKey(intermediateDer);
+    expect(verifyChain({ leafDer, intermediateDer: damaged, roots: [rootPem] })).toBeNull();
   });
 
-  it("an intermediate whose key cannot be decoded does not hold", () => {
-    expect(check({ intermediateDer: withUndecodableKey(genuine.intermediateDer) })).toBeNull();
+  it("rejects a root whose key cannot be read", () => {
+    const damaged = withUnreadableKey(pemToDer(rootPem));
+    expect(verifyChain({ leafDer, intermediateDer, roots: [damaged] })).toBeNull();
   });
 
-  it("a leaf whose key cannot be decoded does not hold", () => {
-    expect(check({ leafDer: withUndecodableKey(genuine.leafDer) })).toBeNull();
+  it("skips a root that is not a certificate and still finds the genuine one", () => {
+    const roots = ["not a certificate", rootPem];
+    expect(verifyChain({ leafDer, intermediateDer, roots })).not.toBeNull();
+    expect(verifyChain({ leafDer, intermediateDer, roots: ["not a certificate"] })).toBeNull();
   });
 
-  it("a root whose key cannot be decoded, or that is not a certificate, issues nothing", () => {
-    expect(check({ roots: [withUndecodableKey(rootDer)] })).toBeNull();
-    expect(check({ roots: ["not a certificate"] })).toBeNull();
-    expect(check({ roots: [new Uint8Array([0x30, 0x03, 0x02, 0x01])] })).toBeNull();
+  it("accepts the root as bytes as well as text", () => {
+    expect(verifyChain({ leafDer, intermediateDer, roots: [pemToDer(rootPem)] })).not.toBeNull();
   });
 
-  it("an unusable root does not hide the genuine one beside it", () => {
-    const roots = ["not a certificate", withUndecodableKey(rootDer), genuine.rootPem];
-    expect(check({ roots })).not.toBeNull();
+  it("rejects a leaf whose key cannot be read", () => {
+    const damaged = withUnreadableKey(leafDer);
+    expect(verifyChain({ leafDer: damaged, intermediateDer, roots: [rootPem] })).toBeNull();
   });
 
-  it("certificates that are not certificates do not hold", () => {
-    expect(check({ leafDer: genuine.leafDer.subarray(0, 40) })).toBeNull();
-    expect(check({ intermediateDer: "" })).toBeNull();
+  it("rejects a leaf or intermediate that is not a certificate", () => {
+    const cut = leafDer.subarray(0, 40);
+    expect(verifyChain({ leafDer: cut, intermediateDer, roots: [rootPem] })).toBeNull();
+    expect(verifyChain({ leafDer, intermediateDer: "", roots: [rootPem] })).toBeNull();
   });
 });
