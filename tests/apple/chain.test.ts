@@ -2,20 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Buffer } from "../../src/authn/apple/buffer";
 import { verifyChain } from "../../src/authn/apple/chain";
-import { makeChain, makeP256 } from "./cert-fixture";
-
-const POINT_HEADER = Buffer.from([0x03, 0x42, 0x00, 0x04]);
-const INVALID_POINT_FORM = 0x05;
-
-const withUnreadableKey = (der: Uint8Array): Buffer => {
-  const damaged = Buffer.from(der);
-  const at = damaged.indexOf(POINT_HEADER);
-  if (at < 0) {
-    throw new Error("certificate has no uncompressed P-256 key");
-  }
-  damaged[at + POINT_HEADER.length - 1] = INVALID_POINT_FORM;
-  return damaged;
-};
+import { makeChain, makeP256, withUndecodableKey } from "./cert-fixture";
 
 const pemToDer = (pem: string): Buffer =>
   Buffer.from(pem.replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, ""), "base64");
@@ -29,12 +16,12 @@ describe("certificate chain", () => {
   });
 
   it("rejects an intermediate whose key cannot be read", () => {
-    const damaged = withUnreadableKey(intermediateDer);
+    const damaged = withUndecodableKey(intermediateDer);
     expect(verifyChain({ leafDer, intermediateDer: damaged, roots: [rootPem] })).toBeNull();
   });
 
   it("rejects a root whose key cannot be read", () => {
-    const damaged = withUnreadableKey(pemToDer(rootPem));
+    const damaged = withUndecodableKey(pemToDer(rootPem));
     expect(verifyChain({ leafDer, intermediateDer, roots: [damaged] })).toBeNull();
   });
 
@@ -49,7 +36,7 @@ describe("certificate chain", () => {
   });
 
   it("rejects a leaf whose key cannot be read", () => {
-    const damaged = withUnreadableKey(leafDer);
+    const damaged = withUndecodableKey(leafDer);
     expect(verifyChain({ leafDer: damaged, intermediateDer, roots: [rootPem] })).toBeNull();
   });
 
