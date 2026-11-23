@@ -56,6 +56,22 @@ const parsePair = (input: ChainInput): CertificatePair | null => {
   }
 };
 
+const parseOne = (value: CertificateInput): X509Certificate | null => {
+  try {
+    return asCertificate(value);
+  } catch {
+    return null;
+  }
+};
+
+const signedBy = (cert: X509Certificate, issuer: X509Certificate): boolean => {
+  try {
+    return cert.verify(issuer.publicKey);
+  } catch {
+    return false;
+  }
+};
+
 const carriesOid = (cert: X509Certificate, oid: Uint8Array | undefined): boolean =>
   oid === undefined || derContainsOid(cert.raw, oid);
 
@@ -70,11 +86,11 @@ const pairHolds = (pair: CertificatePair, input: ChainInput, now: number): boole
   if (leaf.issuer !== intermediate.subject) {
     return false;
   }
-  return leaf.verify(intermediate.publicKey);
+  return signedBy(leaf, intermediate);
 };
 
 const issuedBy = (intermediate: X509Certificate, root: X509Certificate, now: number): boolean =>
-  datesOk(root, now) && intermediate.issuer === root.subject && intermediate.verify(root.publicKey);
+  datesOk(root, now) && intermediate.issuer === root.subject && signedBy(intermediate, root);
 
 export const verifyChain = (input: ChainInput): VerifiedChain | null => {
   const { roots, now = Date.now() } = input;
@@ -86,8 +102,8 @@ export const verifyChain = (input: ChainInput): VerifiedChain | null => {
     return null;
   }
   for (const candidate of roots) {
-    const root = asCertificate(candidate);
-    if (issuedBy(pair.intermediate, root, now)) {
+    const root = parseOne(candidate);
+    if (root && issuedBy(pair.intermediate, root, now)) {
       return { ...pair, root };
     }
   }
