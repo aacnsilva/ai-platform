@@ -6,7 +6,7 @@ import type { AppTransactionResult, TransactionResult } from "../../src/authn/ap
 import { verifyAppTransaction, verifyTransaction } from "../../src/authn/apple";
 import { Buffer } from "../../src/authn/apple/buffer";
 import type { TestChain, TestKey } from "./cert-fixture";
-import { derToRaw, makeChain, makeP256 } from "./cert-fixture";
+import { derToRaw, makeChain, makeP256, withUndecodableKey } from "./cert-fixture";
 
 const BUNDLE = "com.example.app";
 const MONTHLY = "example.plan.monthly";
@@ -144,6 +144,17 @@ describe("storekit transaction", () => {
     expect(rejection(check(issued({ originalTransactionId: "not valid!" })))).toBe(bad);
     const other = plainChain(makeP256());
     expect(rejection(check(fixture, { roots: [other.rootPem] }))).toBe("bad_transaction/chain");
+  });
+
+  it("an intermediate whose key cannot be decoded is a chain failure, not a throw", () => {
+    const key = makeP256();
+    const genuine = appStoreChain(key);
+    const chain = { ...genuine, intermediateDer: withUndecodableKey(genuine.intermediateDer) };
+    const jws = sign(key, chain, transactionPayload());
+    expect(rejection(check({ jws, chain }))).toBe("bad_transaction/chain");
+    expect(rejection(checkApp({ jws: sign(key, chain, appPayload()), chain }))).toBe(
+      "bad_transaction/chain",
+    );
   });
 
   it("the allowed environments are the caller's choice", () => {

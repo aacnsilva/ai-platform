@@ -43,6 +43,9 @@ checked on every run and not only when the generator finds it again.
   buffer, and refuse nesting deeper than sixteen levels instead of exhausting the stack.
 - No change to a genuine attestation, assertion, store transaction or account token is ever read as
   a different key, counter, purchase or subject. Bytes that were never one are rejected.
+- A certificate in a chain that parses but carries a key that cannot be decoded is a chain that
+  does not hold, never a throw. `tests/apple/chain.test.ts` pins this case with a corrupted key, so
+  it does not wait on a fuzz seed.
 - An account token is answered with the claims its issuer signed or a 401, never a 500.
 - Any request body is answered with a 400 or a conversation inside the tenant's limits, with no
   control characters and no tool the contract does not list.

@@ -194,6 +194,18 @@ export const makeChain = (options: ChainOptions): TestChain => {
   };
 };
 
+const P256_POINT_HEADER = Buffer.from([0x03, 0x42, 0x00, 0x04]);
+
+export const withUndecodableKey = (certificateDer: Uint8Array): Buffer => {
+  const der = Buffer.from(certificateDer);
+  const header = der.indexOf(P256_POINT_HEADER);
+  if (header < 0) {
+    throw new Error("certificate has no P-256 key");
+  }
+  const x = header + P256_POINT_HEADER.length;
+  return Buffer.concat([der.subarray(0, x), Buffer.alloc(32, 0xff), der.subarray(x + 32)]);
+};
+
 const padded = (body: Buffer): Buffer => {
   const trimmed = body[0] === 0x00 ? body.subarray(1) : body;
   const out = Buffer.alloc(32);

@@ -35,7 +35,7 @@ const datesOk = (cert: X509Certificate, now: number): boolean => {
   );
 };
 
-const asCertificate = (value: CertificateInput): X509Certificate => {
+const parseCertificate = (value: CertificateInput): X509Certificate => {
   if (value instanceof X509Certificate) {
     return value;
   }
@@ -45,14 +45,25 @@ const asCertificate = (value: CertificateInput): X509Certificate => {
   return new X509Certificate(Buffer.from(value));
 };
 
-const parsePair = (input: ChainInput): CertificatePair | null => {
+const asCertificate = (value: CertificateInput): X509Certificate | null => {
   try {
-    return {
-      leaf: asCertificate(input.leafDer),
-      intermediate: asCertificate(input.intermediateDer),
-    };
+    return parseCertificate(value);
   } catch {
     return null;
+  }
+};
+
+const parsePair = (input: ChainInput): CertificatePair | null => {
+  const leaf = asCertificate(input.leafDer);
+  const intermediate = asCertificate(input.intermediateDer);
+  return leaf && intermediate ? { leaf, intermediate } : null;
+};
+
+const signedBy = (cert: X509Certificate, issuer: X509Certificate): boolean => {
+  try {
+    return cert.verify(issuer.publicKey);
+  } catch {
+    return false;
   }
 };
 
@@ -70,11 +81,11 @@ const pairHolds = (pair: CertificatePair, input: ChainInput, now: number): boole
   if (leaf.issuer !== intermediate.subject) {
     return false;
   }
-  return leaf.verify(intermediate.publicKey);
+  return signedBy(leaf, intermediate);
 };
 
 const issuedBy = (intermediate: X509Certificate, root: X509Certificate, now: number): boolean =>
-  datesOk(root, now) && intermediate.issuer === root.subject && intermediate.verify(root.publicKey);
+  datesOk(root, now) && intermediate.issuer === root.subject && signedBy(intermediate, root);
 
 export const verifyChain = (input: ChainInput): VerifiedChain | null => {
   const { roots, now = Date.now() } = input;
@@ -87,7 +98,7 @@ export const verifyChain = (input: ChainInput): VerifiedChain | null => {
   }
   for (const candidate of roots) {
     const root = asCertificate(candidate);
-    if (issuedBy(pair.intermediate, root, now)) {
+    if (root && issuedBy(pair.intermediate, root, now)) {
       return { ...pair, root };
     }
   }
