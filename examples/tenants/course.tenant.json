@@ -5,7 +5,7 @@
     "kind": "account_token",
     "allowedOrigins": ["http://localhost:8080"],
     "issuer": "https://accounts.example",
-    "audience": "agent-runtime",
+    "audience": "ai-platform",
     "keys": [
       {
         "kid": "example-key-1",

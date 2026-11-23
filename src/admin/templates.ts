@@ -65,7 +65,7 @@ export const TEMPLATES: readonly TenantTemplate[] = [
         kind: "account_token",
         allowedOrigins: ["https://www.example.com"],
         issuer: "https://accounts.example.com",
-        audience: "agent-runtime",
+        audience: "ai-platform",
         keys: [
           {
             kid: "key-1",

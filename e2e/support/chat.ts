@@ -7,7 +7,7 @@ import { ALLOWED_ORIGIN, runtimeUrl } from "./client.ts";
 type Json = Record<string, unknown>;
 
 export const ISSUER = "https://accounts.example";
-export const AUDIENCE = "agent-runtime";
+export const AUDIENCE = "ai-platform";
 
 const required = (name: string): string => process.env[name] ?? "";
 

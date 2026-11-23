@@ -74,7 +74,7 @@ const stopChild = async (child: ChildProcess): Promise<void> =>
 export const startRuntime = async (options: RuntimeOptions): Promise<Runtime> => {
   const port = await freePort();
   const inspectorPort = await freePort();
-  const state = await mkdtemp(join(tmpdir(), "agent-runtime-e2e-"));
+  const state = await mkdtemp(join(tmpdir(), "ai-platform-e2e-"));
   const child = spawn(
     process.execPath,
     [

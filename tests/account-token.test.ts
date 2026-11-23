@@ -14,7 +14,7 @@ describe("account token", () => {
   let authn: AccountTokenAuthn;
   const claims = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
     iss: "https://accounts.example",
-    aud: "agent-runtime",
+    aud: "ai-platform",
     sub: "user_42",
     plan: "plus",
     exp: SECONDS + 300,
@@ -31,7 +31,7 @@ describe("account token", () => {
       kind: "account_token",
       allowedOrigins: [],
       issuer: "https://accounts.example",
-      audience: "agent-runtime",
+      audience: "ai-platform",
       keys: [{ kid: issuer.kid, jwk: issuer.jwk }],
     };
   });
@@ -41,7 +41,7 @@ describe("account token", () => {
       subject: "user_42",
       plan: "plus",
     });
-    expect(await outcome(await issuer.sign(claims({ aud: ["other", "agent-runtime"] })))).toEqual({
+    expect(await outcome(await issuer.sign(claims({ aud: ["other", "ai-platform"] })))).toEqual({
       subject: "user_42",
       plan: "plus",
     });
