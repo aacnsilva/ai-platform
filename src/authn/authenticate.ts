@@ -4,12 +4,13 @@ import type { Tenant } from "../tenants/schema";
 import { verifyAccountToken } from "./account-token";
 import { authenticateDevice } from "./device-authn";
 import { evalPrincipal } from "./eval-pass";
+import { normalizeIp } from "./ip";
 import type { Principal } from "./principal";
 
 const BEARER = "Bearer ";
 
 export const clientIp = (request: Request): string =>
-  request.headers.get("CF-Connecting-IP") ?? "unknown";
+  normalizeIp(request.headers.get("CF-Connecting-IP"));
 
 export const assertOrigin = (request: Request, tenant: Tenant): void => {
   const origin = request.headers.get("Origin");

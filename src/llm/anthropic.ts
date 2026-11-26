@@ -16,7 +16,7 @@ import type {
 
 const FIRST_BYTE_TIMEOUT_MS = 20_000;
 const STREAM_IDLE_TIMEOUT_MS = 30_000;
-const MAX_RETRIES = 1;
+const MAX_RETRIES = 0;
 const RETRYABLE_STATUSES = new Set([408, 409, 429]);
 const CACHED = { type: "ephemeral" } as const;
 

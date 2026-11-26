@@ -22,6 +22,7 @@ interface World {
   record: SessionRecord | null;
   keys: Map<string, string | null>;
   committed: Set<string>;
+  lastCommittedKey: string | null;
   nextLease: number;
 }
 
@@ -74,6 +75,10 @@ const begin = (world: World, op: Op & { kind: "begin" }): void => {
   if (before !== null && before.owner !== op.owner) {
     expect(decision).toEqual({ kind: "refused", code: "not_found" });
   }
+  if (decision.kind === "replay") {
+    expect(op.key).toBe(world.lastCommittedKey);
+    return;
+  }
   if (decision.kind !== "started") {
     return;
   }
@@ -101,6 +106,7 @@ const commit = (world: World, op: Op & { kind: "commit" }): void => {
     return;
   }
   expect(committed.count).toBe((before?.count ?? 0) + op.appended);
+  world.lastCommittedKey = key;
   if (key !== null) {
     world.committed.add(key);
   }
@@ -162,6 +168,7 @@ describe("turn invariants", () => {
           record: null,
           keys: new Map(),
           committed: new Set(),
+          lastCommittedKey: null,
           nextLease: 6,
         };
         for (const op of sequence) {

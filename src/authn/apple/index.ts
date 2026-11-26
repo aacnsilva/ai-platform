@@ -40,6 +40,8 @@ export {
   APPLE_ROOT_G2_SHA256,
   APPLE_ROOT_G3_SHA256,
   certificateFromPem,
+  defaultAttestRoots,
+  defaultStoreRoots,
   pinnedRoots,
   STOREKIT_ROOT_FINGERPRINTS,
   STOREKIT_ROOT_PEMS,

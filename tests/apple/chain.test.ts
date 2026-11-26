@@ -8,11 +8,26 @@ const pemToDer = (pem: string): Buffer =>
   Buffer.from(pem.replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, ""), "base64");
 
 describe("certificate chain", () => {
-  const chain = makeChain({ leafKeyPem: makeP256().pem, leafExt: [], intermediateExt: [] });
+  const chain = makeChain({
+    leafKeyPem: makeP256().pem,
+    leafExt: [],
+    intermediateExt: ["basicConstraints=critical,CA:TRUE"],
+  });
   const { leafDer, intermediateDer, rootPem } = chain;
 
   it("accepts a genuine chain", () => {
     expect(verifyChain({ leafDer, intermediateDer, roots: [rootPem] })).not.toBeNull();
+  });
+
+  it("rejects an intermediate without CA basic constraints", () => {
+    const nonCa = makeChain({ leafKeyPem: makeP256().pem, leafExt: [], intermediateExt: [] });
+    expect(
+      verifyChain({
+        leafDer: nonCa.leafDer,
+        intermediateDer: nonCa.intermediateDer,
+        roots: [nonCa.rootPem],
+      }),
+    ).toBeNull();
   });
 
   it("rejects an intermediate whose key cannot be read", () => {

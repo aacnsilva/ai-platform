@@ -12,7 +12,13 @@ import {
   verifyAttestation,
   verifyTransaction,
 } from "../../src/authn/apple";
-import { extensionValue, octetStringInsideSequence, readDer } from "../../src/authn/apple/asn1";
+import {
+  certExtensionValue,
+  certHasExtensionOid,
+  extensionValue,
+  octetStringInsideSequence,
+  readDer,
+} from "../../src/authn/apple/asn1";
 import { Buffer } from "../../src/authn/apple/buffer";
 import { createFakeDevice, createFakeStore } from "../apple/device-fixture";
 
@@ -140,8 +146,12 @@ describe("der reader under hostile bytes", () => {
     const oid = fc.uint8Array({ minLength: 1, maxLength: 4 });
     fc.assert(
       fc.property(bytes, oid, (input, needle) => {
-        formatOnly(() => extensionValue(Buffer.concat([input, needle, input]), needle));
+        const combined = Buffer.concat([input, needle, input]);
+        formatOnly(() => extensionValue(combined, needle));
         formatOnly(() => octetStringInsideSequence(Buffer.from(input)));
+        expect(certExtensionValue(combined, needle) !== null).toBe(
+          certHasExtensionOid(combined, needle),
+        );
       }),
       { numRuns: 5000 },
     );

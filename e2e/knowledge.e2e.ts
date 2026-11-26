@@ -143,5 +143,55 @@ describe("knowledge retrieval per tenant", () => {
     });
     expect(invalid.status).toBe(400);
     expect(((await invalid.json()) as Json)["error"]).toBe("bad_document");
+    const unknownPlan = await documents(tenant, "/bad-plan", {
+      method: "PUT",
+      body: JSON.stringify({ title: "x", text: "body", plans: ["nonexistent"] }),
+    });
+    expect(unknownPlan.status).toBe(400);
+    expect(((await unknownPlan.json()) as Json)["error"]).toBe("bad_document");
+  });
+
+  it("reads a single document with its plans and chunks, and clears knowledge on tenant delete", async () => {
+    const read = (await (await documents(tenant, "/wheel-truing")).json()) as {
+      id: string;
+      plans: string[] | null;
+      texts: string[];
+    };
+    expect(read.id).toBe("wheel-truing");
+    expect(read.plans).toEqual(["pro"]);
+    expect(read.texts[0]).toContain("MARKER-WHEELS");
+    const list = (await (await documents(tenant, "")).json()) as {
+      id: string;
+      plans: string[] | null;
+    }[];
+    expect(list.find((entry) => entry.id === "wheel-truing")?.plans).toEqual(["pro"]);
+    const temp = await createChatTenant({ state: "stored", tools: serverTools() });
+    await putDocument(temp, "temp-doc", BRAKES);
+    const saved = (await (
+      await fetch(`${runtimeUrl()}/admin/api/tenants/${temp.id}`, {
+        headers: { authorization: `Bearer ${process.env["E2E_ADMIN_TOKEN"] ?? ""}` },
+      })
+    ).json()) as { tenant: Json };
+    expect(
+      (
+        await fetch(`${runtimeUrl()}/admin/api/tenants/${temp.id}`, {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${process.env["E2E_ADMIN_TOKEN"] ?? ""}` },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await fetch(`${runtimeUrl()}/admin/api/tenants/${temp.id}`, {
+          method: "PUT",
+          headers: {
+            authorization: `Bearer ${process.env["E2E_ADMIN_TOKEN"] ?? ""}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(saved.tenant),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await (await documents(temp, "")).json()) as unknown[]).toEqual([]);
   });
 });

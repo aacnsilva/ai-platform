@@ -1,6 +1,6 @@
 import { X509Certificate } from "node:crypto";
 
-import { derContainsOid } from "./asn1";
+import { certHasExtensionOid } from "./asn1";
 import { Buffer } from "./buffer";
 
 const SKEW_MS = 5 * 60 * 1000;
@@ -73,11 +73,11 @@ const signedBy = (cert: X509Certificate, issuer: X509Certificate): boolean => {
 };
 
 const carriesOid = (cert: X509Certificate, oid: Uint8Array | undefined): boolean =>
-  oid === undefined || derContainsOid(cert.raw, oid);
+  oid === undefined || certHasExtensionOid(cert.raw, oid);
 
 const pairHolds = (pair: CertificatePair, input: ChainInput, now: number): boolean => {
   const { leaf, intermediate } = pair;
-  if (!datesOk(leaf, now) || !datesOk(intermediate, now)) {
+  if (!intermediate.ca || !datesOk(leaf, now) || !datesOk(intermediate, now)) {
     return false;
   }
   if (!carriesOid(leaf, input.leafOid) || !carriesOid(intermediate, input.intermediateOid)) {

@@ -18,13 +18,14 @@ export const toolRuntimeFor = (
     if (embedder === null) {
       return null;
     }
-    const vectors = await embedder.embed([query]).catch(() => []);
+    const vectors = await embedder.embed([query], context.abort.signal).catch(() => []);
     return vectors[0] ?? null;
   };
   return {
     allowedHosts: tenant.egress.allowedHosts,
     maxChars: tenant.agent.kind === "chat" ? tenant.agent.input.maxToolResultChars : 0,
     fetcher: async (input, init) => fetch(input, init),
+    signal: context.abort.signal,
     searchKnowledge: async (query) =>
       knowledge.search({
         query,

@@ -5,8 +5,8 @@ import type { RequestContext } from "./context";
 export type StreamEvent = Record<string, unknown>;
 export type Emit = (event: StreamEvent) => void;
 
-const sseHeaders = (): Headers => {
-  const headers = new Headers();
+const sseHeaders = (extra?: Headers): Headers => {
+  const headers = new Headers(extra);
   headers.set("content-type", "text/event-stream; charset=utf-8");
   headers.set("cache-control", "no-store");
   return headers;
@@ -15,6 +15,7 @@ const sseHeaders = (): Headers => {
 export const streamResponse = (
   context: RequestContext,
   run: (emit: Emit) => Promise<StreamEvent>,
+  extra?: Headers,
 ): Response => {
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
@@ -45,7 +46,7 @@ export const streamResponse = (
   };
   writer.closed.catch(clientLeft);
   context.ctx.waitUntil(work());
-  return new Response(readable, { status: 200, headers: sseHeaders() });
+  return new Response(readable, { status: 200, headers: sseHeaders(extra) });
 };
 
 export const wantsStream = (request: Request): boolean =>

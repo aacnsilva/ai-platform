@@ -27,10 +27,20 @@ const CREATE_TABLE = `
     evaluated INTEGER NOT NULL DEFAULT 0
   )`;
 const CREATE_INDEX = "CREATE INDEX IF NOT EXISTS events_at ON events (at)";
+const CREATE_TENANT_INDEX = "CREATE INDEX IF NOT EXISTS events_tenant_at ON events (tenant, at)";
 const ADD_EVALUATED = "ALTER TABLE events ADD COLUMN evaluated INTEGER NOT NULL DEFAULT 0";
 const HAS_EVALUATED = "SELECT 1 FROM pragma_table_info('events') WHERE name = 'evaluated'";
-const INSERT = `INSERT INTO events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-const SELECT = `SELECT * FROM events WHERE at >= ? ORDER BY at ASC LIMIT ?`;
+const INSERT = `INSERT INTO events (
+  at, tenant, request_id, outcome, status, streamed, model, attempts,
+  latency_ms, ttft_ms, input_tokens, output_tokens, cache_read_tokens,
+  cache_write_tokens, cost_nano_eur, evaluated
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+export interface MetricsQuery {
+  since: number;
+  tenant?: string | null;
+  traffic?: string | null;
+}
 
 type Row = Record<string, SqlStorageValue>;
 
@@ -59,6 +69,25 @@ const eventOf = (row: Row): RunEvent => ({
   costNanoEur: numberOf(row["cost_nano_eur"]),
 });
 
+const whereOf = (query: MetricsQuery): { sql: string; args: SqlStorageValue[] } => {
+  const clauses = ["at >= ?"];
+  const args: SqlStorageValue[] = [query.since];
+  if (query.tenant !== undefined && query.tenant !== null && query.tenant !== "") {
+    clauses.push("tenant = ?");
+    args.push(query.tenant);
+  }
+  if (query.traffic === "real") {
+    clauses.push("evaluated = 0");
+  } else if (query.traffic === "evals") {
+    clauses.push("evaluated = 1");
+  }
+  args.push(MAX_ROWS);
+  return {
+    sql: `SELECT * FROM events WHERE ${clauses.join(" AND ")} ORDER BY at DESC LIMIT ?`,
+    args,
+  };
+};
+
 export class Metrics extends DurableObject<Env> {
   private recorded = 0;
 
@@ -66,6 +95,7 @@ export class Metrics extends DurableObject<Env> {
     super(ctx, env);
     ctx.storage.sql.exec(CREATE_TABLE);
     ctx.storage.sql.exec(CREATE_INDEX);
+    ctx.storage.sql.exec(CREATE_TENANT_INDEX);
     if (ctx.storage.sql.exec(HAS_EVALUATED).toArray().length === 0) {
       ctx.storage.sql.exec(ADD_EVALUATED);
     }
@@ -97,7 +127,13 @@ export class Metrics extends DurableObject<Env> {
     }
   }
 
-  since(since: number): RunEvent[] {
-    return this.ctx.storage.sql.exec<Row>(SELECT, since, MAX_ROWS).toArray().map(eventOf);
+  since(input: number | MetricsQuery): RunEvent[] {
+    const query = typeof input === "number" ? { since: input } : input;
+    const { sql, args } = whereOf(query);
+    return this.ctx.storage.sql
+      .exec<Row>(sql, ...args)
+      .toArray()
+      .reverse()
+      .map(eventOf);
   }
 }

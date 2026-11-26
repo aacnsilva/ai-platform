@@ -39,6 +39,11 @@ export interface QuotaView {
   limit: number;
 }
 
+export interface SpentGrant {
+  spent: 0 | 1;
+  usedFreeRound: boolean;
+}
+
 export interface RoundResult {
   status: number;
   outcome: string;
@@ -48,6 +53,7 @@ export interface RoundResult {
   allCalls: ToolUseBlock[];
   serverResults: string[];
   quota: QuotaView | null;
+  spentGrant?: SpentGrant;
   model: ModelId | null;
   attempts: number;
   usage: Usage;
@@ -201,6 +207,9 @@ export const chatRound = async (turn: ChatTurn, listeners: Listeners): Promise<R
       tools: toolSpecs(turn.contract),
       thinking: agent.thinking,
     },
+  }).catch(async (error: unknown) => {
+    await refund().catch(() => undefined);
+    throw error;
   });
   const measured = {
     model: outcome.model,
@@ -220,5 +229,9 @@ export const chatRound = async (turn: ChatTurn, listeners: Listeners): Promise<R
       problemWith(turn, outcome.reply, publicBlocks(agent, outcome.reply.blocks)) ?? "unreadable";
     return failure(unreadable(code), measured);
   }
-  return { ...result, ...measured };
+  return {
+    ...result,
+    spentGrant: { spent: grant.spent, usedFreeRound: grant.usedFreeRound },
+    ...measured,
+  };
 };

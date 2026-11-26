@@ -134,6 +134,17 @@ describe("idempotency key", () => {
     expect(beginTurn(record, input({ key: "fresh" })).kind).toBe("started");
   });
 
+  it("retires the previous key when an unkeyed turn commits after it", () => {
+    const first = committed(started(null, { key: "k1" }), "k1");
+    const second = committed(started(first, { key: null, leaseId: "lease-2" }), null);
+    expect(second.replay).toBeNull();
+    expect(second.spentKeys).toContain("k1");
+    expect(beginTurn(second, input({ key: "k1", leaseId: "lease-3" }))).toEqual({
+      kind: "refused",
+      code: "idempotency_key_spent",
+    });
+  });
+
   it("accepts visible ASCII up to 128 characters and nothing else", () => {
     expect(readIdempotencyKey(null)).toEqual({ ok: true, key: null });
     expect(readIdempotencyKey(" abc-123 ")).toEqual({ ok: true, key: "abc-123" });

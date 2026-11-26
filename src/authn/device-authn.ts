@@ -3,13 +3,10 @@ import { Rejection } from "../http/respond";
 import type { AppAttestAuthn, Tenant } from "../tenants/schema";
 import type { CertificateInput } from "./apple";
 import {
-  APP_ATTEST_ROOT_FINGERPRINTS,
-  APP_ATTEST_ROOT_PEMS,
   bytesToBase64Url,
   decodeBase64,
-  pinnedRoots,
-  STOREKIT_ROOT_FINGERPRINTS,
-  STOREKIT_ROOT_PEMS,
+  defaultAttestRoots,
+  defaultStoreRoots,
   verifyAppTransaction,
   verifyAssertion,
   verifyTransaction,
@@ -41,14 +38,10 @@ export const deviceName = (tenantId: string, keyId: Uint8Array): string =>
   `device:${tenantId}:${bytesToBase64Url(keyId)}`;
 
 export const attestRoots = (authn: AppAttestAuthn): readonly CertificateInput[] | null =>
-  authn.roots === undefined
-    ? pinnedRoots(APP_ATTEST_ROOT_PEMS, APP_ATTEST_ROOT_FINGERPRINTS)
-    : [authn.roots.attest];
+  authn.roots === undefined ? defaultAttestRoots() : [authn.roots.attest];
 
 const storeRoots = (authn: AppAttestAuthn): readonly CertificateInput[] | null =>
-  authn.roots === undefined
-    ? pinnedRoots(STOREKIT_ROOT_PEMS, STOREKIT_ROOT_FINGERPRINTS)
-    : authn.roots.store;
+  authn.roots === undefined ? defaultStoreRoots() : authn.roots.store;
 
 interface Presented {
   keyId: Uint8Array;
@@ -125,33 +118,28 @@ const installPrincipal = (input: DeviceRequest, presented: Presented): Principal
   return principalFor(tenant, `tester-${install}`, authn.installPlan);
 };
 
-const plansOf = (authn: AppAttestAuthn): string[] => [...new Set(Object.values(authn.products))];
-
-const productsOf = (authn: AppAttestAuthn, plan: string): string[] =>
-  Object.entries(authn.products)
-    .filter(([, productPlan]) => productPlan === plan)
-    .map(([product]) => product);
-
 const subscriberPrincipal = (input: DeviceRequest, presented: Presented): Principal => {
   const { authn, tenant } = input;
-  let inactive = false;
-  for (const plan of plansOf(authn)) {
-    const transaction = verifyTransaction({
-      jws: presented.jws,
-      bundleId: authn.bundleId,
-      productIds: productsOf(authn, plan),
-      environments: STORE_ENVIRONMENTS,
-      roots: storeRoots(authn),
-      now: Date.now(),
-    });
-    if (transaction.ok) {
-      return transaction.environment === authn.storeEnvironment
-        ? principalFor(tenant, transaction.originalTransactionId, plan)
-        : deny(404, "not_found");
-    }
-    inactive ||= transaction.error === "entitlement_inactive";
+  const transaction = verifyTransaction({
+    jws: presented.jws,
+    bundleId: authn.bundleId,
+    productIds: Object.keys(authn.products),
+    environments: STORE_ENVIRONMENTS,
+    roots: storeRoots(authn),
+    now: Date.now(),
+  });
+  if (!transaction.ok) {
+    return transaction.error === "entitlement_inactive"
+      ? deny(403, "entitlement_inactive")
+      : deny(401, "bad_transaction");
   }
-  return inactive ? deny(403, "entitlement_inactive") : deny(401, "bad_transaction");
+  const plan = authn.products[transaction.productId];
+  if (plan === undefined) {
+    return deny(403, "entitlement_inactive");
+  }
+  return transaction.environment === authn.storeEnvironment
+    ? principalFor(tenant, transaction.originalTransactionId, plan)
+    : deny(404, "not_found");
 };
 
 const developerPlan = (authn: AppAttestAuthn, device: KnownDevice, jws: string): string | null => {

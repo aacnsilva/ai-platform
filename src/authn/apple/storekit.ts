@@ -43,6 +43,7 @@ export interface StoreKitFailure {
 export interface TransactionSuccess {
   readonly ok: true;
   readonly originalTransactionId: string;
+  readonly productId: string;
   readonly environment: string;
   readonly expiresDate: number;
 }
@@ -116,15 +117,13 @@ const derSignature = (signature: Buffer): Buffer => {
   return Buffer.concat([Buffer.from([0x30, body.length]), body]);
 };
 
-const isObject = (value: unknown): value is Payload => typeof value === "object" && value !== null;
+const isObject = (value: unknown): value is Payload =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const decodePart = (part: string): Payload | null => {
   try {
     const decoded: unknown = JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
-    if (isObject(decoded)) {
-      return decoded;
-    }
-    return decoded === 0 || decoded === "" || decoded === false || decoded === null ? null : {};
+    return isObject(decoded) ? decoded : null;
   } catch {
     return null;
   }
@@ -250,17 +249,21 @@ export const verifyTransaction = (input: TransactionInput): TransactionResult =>
   if (!signed.ok) {
     return signed;
   }
-  const { originalTransactionId, environment, expiresDate, bundleId } = signed.payload;
+  const { originalTransactionId, productId, environment, expiresDate, bundleId } = signed.payload;
   if (bundleId !== input.bundleId || !isIdentifier(originalTransactionId)) {
     return fail("bad_transaction");
   }
   if (!member(input.environments, environment)) {
     return fail("bad_transaction");
   }
-  if (!entitlementActive(signed.payload, input, now) || !isFiniteNumber(expiresDate)) {
+  if (
+    !entitlementActive(signed.payload, input, now) ||
+    !isFiniteNumber(expiresDate) ||
+    typeof productId !== "string"
+  ) {
     return fail("entitlement_inactive");
   }
-  return { ok: true, originalTransactionId, environment, expiresDate };
+  return { ok: true, originalTransactionId, productId, environment, expiresDate };
 };
 
 export const verifyAppTransaction = (input: AppTransactionInput): AppTransactionResult => {

@@ -13,7 +13,7 @@ import {
 } from "../sessions/session";
 import type { ToolRuntime } from "../tools/execute";
 import { executeServerCall, runsOnClient } from "../tools/execute";
-import type { ChatTurn, RoundResult } from "./chat";
+import type { ChatTurn, RoundResult, SpentGrant } from "./chat";
 import { chatRound } from "./chat";
 
 export type Begun =
@@ -58,6 +58,10 @@ interface Progress {
   toolRounds: number;
   tokensPerChar: number | null;
 }
+
+export type PreparedTurn =
+  | { kind: "replay"; body: Record<string, unknown> }
+  | { kind: "started"; begun: Started; progress: Progress };
 
 const addUsage = (left: Usage, right: Usage): Usage => ({
   input: left.input + right.input,
@@ -243,8 +247,27 @@ const handedBack = async (
   return result;
 };
 
-const runRounds = async (turn: SessionTurn, begun: Started): Promise<RoundResult> => {
-  let progress = startFrom(turn, begun);
+const refundAll = async (turn: SessionTurn, grants: readonly SpentGrant[]): Promise<void> => {
+  const now = Date.now();
+  for (const grant of grants) {
+    if (grant.spent > 0 || grant.usedFreeRound) {
+      await turn.base.quota.refund({ now, ...grant }).catch(() => undefined);
+    }
+  }
+};
+
+const tooMany = (total: RoundResult | null): RoundResult =>
+  total === null ? TOO_MANY_ROUNDS : { ...TOO_MANY_ROUNDS, ...measuredOf(total) };
+
+interface LoopInput {
+  begun: Started;
+  initial: Progress;
+  grants: SpentGrant[];
+}
+
+const runLoop = async (turn: SessionTurn, state: LoopInput): Promise<RoundResult> => {
+  const { begun, grants } = state;
+  let progress = state.initial;
   let total: RoundResult | null = null;
   for (let round = 0; round < turn.base.agent.maxRounds; round += 1) {
     if (round > 0 && !(await turn.store.renew())) {
@@ -253,13 +276,21 @@ const runRounds = async (turn: SessionTurn, begun: Started): Promise<RoundResult
     const result = await modelRound(turn, begun, progress);
     total = combine(total, result);
     if (result.status !== 200) {
+      await refundAll(turn, grants);
       return total;
+    }
+    if (result.spentGrant !== undefined) {
+      grants.push(result.spentGrant);
     }
     const tokensPerChar =
       measuredTokensPerChar(result.usage, result.promptChars) ?? progress.tokensPerChar;
     progress = { ...progress, tokensPerChar };
     if (result.calls.length === 0) {
       return answered(turn, progress, total);
+    }
+    if (progress.toolRounds >= turn.base.agent.maxRounds) {
+      await refundAll(turn, grants);
+      return tooMany(total);
     }
     const next = await afterToolCalls(turn, progress, result);
     total = { ...total, serverResults: [...total.serverResults, ...next.executed] };
@@ -268,23 +299,46 @@ const runRounds = async (turn: SessionTurn, begun: Started): Promise<RoundResult
     }
     progress = { ...progress, messages: next.messages, toolRounds: progress.toolRounds + 1 };
   }
-  return total === null ? TOO_MANY_ROUNDS : { ...TOO_MANY_ROUNDS, ...measuredOf(total) };
+  await refundAll(turn, grants);
+  return tooMany(total);
 };
 
-export const runSessionTurn = async (turn: SessionTurn): Promise<TurnResult> => {
+export const prepareSessionTurn = async (turn: SessionTurn): Promise<PreparedTurn> => {
   const begun = await turn.store.begin();
   if (begun.kind === "refused") {
     throw begun.code === "session_busy" ? busy() : new Rejection(begun.status, begun.code);
   }
   if (begun.kind === "replay") {
-    return { ...REPLAYED, body: begun.body };
+    return { kind: "replay", body: begun.body };
   }
   try {
-    return await runRounds(turn, begun);
+    return { kind: "started", begun, progress: startFrom(turn, begun) };
+  } catch (error) {
+    await turn.store.release();
+    throw error;
+  }
+};
+
+export const finishSessionTurn = async (
+  turn: SessionTurn,
+  prepared: PreparedTurn,
+): Promise<TurnResult> => {
+  if (prepared.kind === "replay") {
+    return { ...REPLAYED, body: prepared.body };
+  }
+  const grants: SpentGrant[] = [];
+  try {
+    return await runLoop(turn, { begun: prepared.begun, initial: prepared.progress, grants });
+  } catch (error) {
+    await refundAll(turn, grants);
+    throw error;
   } finally {
     await turn.store.release();
   }
 };
+
+export const runSessionTurn = async (turn: SessionTurn): Promise<TurnResult> =>
+  finishSessionTurn(turn, await prepareSessionTurn(turn));
 
 const measuredOf = (
   result: RoundResult,

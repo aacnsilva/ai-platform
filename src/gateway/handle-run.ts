@@ -4,11 +4,13 @@ import { createChatStream } from "../agent/chat-stream";
 import { GateStream } from "../agent/gate-stream";
 import type { RunInput } from "../agent/run";
 import { answer, reserve } from "../agent/run";
-import { runSessionTurn } from "../agent/session-run";
+import type { PreparedTurn, SessionTurn } from "../agent/session-run";
+import { finishSessionTurn, prepareSessionTurn } from "../agent/session-run";
 import type { Spend } from "../agent/spend";
-import { authenticate, clientIp } from "../authn/authenticate";
+import { assertOrigin, authenticate, clientIp } from "../authn/authenticate";
 import type { Principal } from "../authn/principal";
 import { corsHeaders, withHeaders } from "../http/cors";
+import { readBoundedBytes } from "../http/read-body";
 import { INTERNAL_BODY, json, Rejection, rejectionResponse } from "../http/respond";
 import { createAnthropicProvider } from "../llm/anthropic";
 import type { Listeners } from "../llm/provider";
@@ -20,6 +22,7 @@ import { loadTenant } from "../tenants/registry";
 import type { ChatAgent, Contract, GatedAgent, Tenant } from "../tenants/schema";
 import { contractHash } from "../tools/contract-hash";
 import { toolRuntimeFor } from "../tools/runtime";
+import type { StoredTurn } from "./chat-body";
 import { parseChat, parseStoredTurn } from "./chat-body";
 import type { RequestContext } from "./context";
 import { parseConversation } from "./conversation";
@@ -93,11 +96,20 @@ const traced = (call: Call, run: Finished): Finished => {
 const finalEvent = (run: Finished): StreamEvent => ({
   type: run.status === 200 ? "done" : "error",
   ...run.body,
+  ...(run.replayed === true ? { replayed: true } : {}),
 });
 
 type Work = (emit: Emit | undefined, delivery: Delivery) => Promise<Finished>;
 
-const deliver = async (call: Call, work: Work): Promise<Response> => {
+const replayHeaders = (run: Pick<Finished, "replayed">): Headers => {
+  const headers = new Headers();
+  if (run.replayed === true) {
+    headers.set("idempotent-replay", "true");
+  }
+  return headers;
+};
+
+const deliver = async (call: Call, work: Work, extraHeaders?: Headers): Promise<Response> => {
   const { context, tenant } = call;
   const { evaluated } = call.principal;
   if (!wantsStream(context.request)) {
@@ -109,22 +121,18 @@ const deliver = async (call: Call, work: Work): Promise<Response> => {
     return json(run.body, run.status, replayHeaders(run));
   }
   const delivery: Delivery = { streamed: true, ttftMs: null, evaluated };
-  return streamResponse(context, async (emit) => {
-    const finished = await work(emit, delivery).catch((error: unknown) =>
-      failedMidStream(context, error),
-    );
-    const run = traced(call, finished);
-    recordFinished({ context, tenantId: tenant.id, run, delivery });
-    return finalEvent(run);
-  });
-};
-
-const replayHeaders = (run: Finished): Headers => {
-  const headers = new Headers();
-  if (run.replayed === true) {
-    headers.set("idempotent-replay", "true");
-  }
-  return headers;
+  return streamResponse(
+    context,
+    async (emit) => {
+      const finished = await work(emit, delivery).catch((error: unknown) =>
+        failedMidStream(context, error),
+      );
+      const run = traced(call, finished);
+      recordFinished({ context, tenantId: tenant.id, run, delivery });
+      return finalEvent(run);
+    },
+    extraHeaders,
+  );
 };
 
 const UNMEASURED = {
@@ -148,6 +156,9 @@ const failedMidStream = (context: RequestContext, error: unknown): Finished => {
     body: {
       error: error.code,
       ...(error.publicMessage === undefined ? {} : { message: error.publicMessage }),
+      ...(error.retryAfterSeconds === undefined
+        ? {}
+        : { retryAfterSeconds: error.retryAfterSeconds }),
     },
     ...UNMEASURED,
   };
@@ -261,40 +272,72 @@ const sessionIdOf = async (
   return key === null ? crypto.randomUUID() : sessionIdFor(call.principal.subjectId, key);
 };
 
-const storedResponse = async (call: Call, agent: ChatAgent): Promise<Response> => {
-  const { env } = call.context;
-  const key = idempotencyKeyOf(call.context.request);
-  const parsed = parseStoredTurn(call.body, agent);
+interface StoredSessionTarget {
+  parsed: StoredTurn;
+  sessionId: string;
+  key: string | null;
+  fingerprint: string;
+}
+
+const buildSessionTurn = async (
+  call: Call,
+  agent: ChatAgent,
+  target: StoredSessionTarget,
+): Promise<{ turn: SessionTurn; prepared: PreparedTurn }> => {
+  const { parsed, sessionId, key, fingerprint } = target;
   await assertPinned(parsed.contract, parsed.contractHash);
-  const sessionId = await sessionIdOf(call, parsed.sessionId, key);
-  const store = sessionPort(sessionStub(env, call.tenant.id, sessionId), {
+  const store = sessionPort(sessionStub(call.context.env, call.tenant.id, sessionId), {
     owner: call.principal.subjectId,
     key,
-    fingerprint: await fingerprintOf(call.body),
+    fingerprint,
     tail: agent.input.maxMessages,
   });
-  return deliver(call, async (emit, delivery) => {
-    const send = deltaEmitter(call, emit, delivery);
-    const run = await runSessionTurn({
-      base: {
-        spend: call.spend,
-        agent,
-        principal: call.principal,
-        contract: parsed.contract,
-        quota: quotaFor(call),
-        context: parsed.context,
-      },
-      store,
-      input: parsed.input,
-      tools: toolRuntimeFor(call.context, call.tenant, call.principal),
-      listenersForRound: () => heldListeners(agent, send),
-    });
-    return { ...run, body: { sessionId, ...run.body } };
+  const turn: SessionTurn = {
+    base: {
+      spend: call.spend,
+      agent,
+      principal: call.principal,
+      contract: parsed.contract,
+      quota: quotaFor(call),
+      context: parsed.context,
+    },
+    store,
+    input: parsed.input,
+    tools: toolRuntimeFor(call.context, call.tenant, call.principal),
+    listenersForRound: () => ({}),
+  };
+  return { turn, prepared: await prepareSessionTurn(turn) };
+};
+
+const storedResponse = async (call: Call, agent: ChatAgent): Promise<Response> => {
+  const key = idempotencyKeyOf(call.context.request);
+  const parsed = parseStoredTurn(call.body, agent);
+  const sessionId = await sessionIdOf(call, parsed.sessionId, key);
+  const fingerprint = await fingerprintOf(call.body);
+  const { turn, prepared } = await buildSessionTurn(call, agent, {
+    parsed,
+    sessionId,
+    key,
+    fingerprint,
   });
+  const extra = prepared.kind === "replay" ? replayHeaders({ replayed: true }) : undefined;
+  return deliver(
+    call,
+    async (emit, delivery) => {
+      const send = deltaEmitter(call, emit, delivery);
+      const run = await finishSessionTurn(
+        { ...turn, listenersForRound: () => heldListeners(agent, send) },
+        prepared,
+      );
+      return { ...run, body: { sessionId, ...run.body } };
+    },
+    extra,
+  );
 };
 
 const respond = async (context: RequestContext, tenant: Tenant): Promise<Response> => {
-  const rawBody = new Uint8Array(await context.request.arrayBuffer());
+  assertOrigin(context.request, tenant);
+  const rawBody = await readBoundedBytes(context.request, tenant.agent.input.maxBodyBytes);
   const principal = await authenticate(context, tenant, rawBody);
   const call: Call = {
     context,

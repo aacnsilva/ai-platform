@@ -33,13 +33,12 @@ const metrics = async (request: Request, env: Env): Promise<Response> => {
   const now = Date.now();
   const window = windowFor(url, now);
   const tenantFilter = url.searchParams.get("tenant");
-  const store = env.METRICS.get(env.METRICS.idFromName("global"));
-  const [events, tenants] = await Promise.all([store.since(window.since), listTenants(env)]);
   const traffic = url.searchParams.get("traffic");
-  const selected = events
-    .filter((event) => tenantFilter === null || event.tenant === tenantFilter)
-    .filter((event) => traffic !== "real" || !event.evaluated)
-    .filter((event) => traffic !== "evals" || event.evaluated);
+  const store = env.METRICS.get(env.METRICS.idFromName("global"));
+  const [selected, tenants] = await Promise.all([
+    store.since({ since: window.since, tenant: tenantFilter, traffic }),
+    listTenants(env),
+  ]);
   const pools = await Promise.all(tenants.map((tenant) => poolOf(env, tenant, now)));
   return json({ ...summarize(selected, window), tenants: pools }, 200);
 };

@@ -113,7 +113,12 @@ const bucketsOf = (events: readonly RunEvent[], window: Window): Bucket[] => {
   const grouped = new Map<number, RunEvent[]>();
   for (const event of events) {
     const start = Math.floor(event.at / window.bucketMs) * window.bucketMs;
-    grouped.set(start, [...(grouped.get(start) ?? []), event]);
+    const bucket = grouped.get(start);
+    if (bucket === undefined) {
+      grouped.set(start, [event]);
+    } else {
+      bucket.push(event);
+    }
   }
   const buckets: Bucket[] = [];
   const first = Math.floor(window.since / window.bucketMs) * window.bucketMs;

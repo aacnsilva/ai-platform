@@ -1,7 +1,7 @@
 import type { KeyObject } from "node:crypto";
 import { createPublicKey, timingSafeEqual, verify as verifySignature } from "node:crypto";
 
-import { extensionValue, octetStringInsideSequence } from "./asn1";
+import { certExtensionValue, octetStringInsideSequence } from "./asn1";
 import { Buffer } from "./buffer";
 import { bytesToBase64Url, sha256 } from "./bytes";
 import type { CborValue } from "./cbor";
@@ -273,9 +273,13 @@ const credentialOf = (
 };
 
 const nonceMatches = (chain: VerifiedChain, nonce: Buffer): boolean => {
-  const extension = extensionValue(chain.leaf.raw, APP_ATTEST_NONCE_OID);
-  const embedded = extension && octetStringInsideSequence(extension);
-  return embedded !== null && sameBytes(embedded, nonce);
+  try {
+    const extension = certExtensionValue(chain.leaf.raw, APP_ATTEST_NONCE_OID);
+    const embedded = extension && octetStringInsideSequence(extension);
+    return embedded !== null && sameBytes(embedded, nonce);
+  } catch {
+    return false;
+  }
 };
 
 const certificatePoint = (chain: VerifiedChain): Buffer | null => {

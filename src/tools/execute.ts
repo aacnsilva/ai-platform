@@ -13,6 +13,7 @@ export interface ToolRuntime {
   allowedHosts: readonly string[];
   maxChars: number;
   fetcher: typeof fetch;
+  signal?: AbortSignal;
   searchKnowledge: (query: string) => Promise<KnowledgeHit[]>;
 }
 

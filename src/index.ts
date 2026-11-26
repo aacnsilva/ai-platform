@@ -43,25 +43,34 @@ interface TenantRoute {
 const routeDetail = (context: RequestContext, target: TenantRoute): Promise<Response> | null => {
   const { tenantId, resource, detail } = target;
   const { method } = context.request;
-  if (resource === "attest" && (detail === "challenge" || detail === "key")) {
-    return handleAttest(context, tenantId, detail);
+  if (resource === "attest") {
+    return detail === "challenge" || detail === "key"
+      ? handleAttest(context, tenantId, detail)
+      : Promise.resolve(json({ error: "not_found" }, 404));
   }
-  const readsSession = method === "GET" || method === "DELETE";
-  if (resource === "sessions" && readsSession && detail.length >= MIN_SESSION_ID_CHARS) {
-    return handleSession(context, tenantId, detail);
+  if (resource !== "sessions") {
+    return null;
   }
-  return null;
+  if (detail.length < MIN_SESSION_ID_CHARS) {
+    return Promise.resolve(json({ error: "not_found" }, 404));
+  }
+  return method === "GET" || method === "DELETE"
+    ? handleSession(context, tenantId, detail)
+    : Promise.resolve(json({ error: "method_not_allowed" }, 405));
 };
 
 const routeTenant = async (context: RequestContext, target: TenantRoute): Promise<Response> => {
-  const { tenantId, resource } = target;
+  const { tenantId, resource, detail } = target;
   const { method } = context.request;
+  if (method === "OPTIONS") {
+    return handlePreflight(context, tenantId);
+  }
   const detailed = routeDetail(context, target);
   if (detailed !== null) {
     return detailed;
   }
-  if (method === "OPTIONS") {
-    return handlePreflight(context, tenantId);
+  if (detail !== "") {
+    return json({ error: "not_found" }, 404);
   }
   if (resource === "runs" && method === "POST") {
     return handleRun(context, tenantId);
@@ -113,9 +122,13 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const startedAt = Date.now();
     const abort = new AbortController();
-    request.signal.addEventListener("abort", () => {
+    if (request.signal.aborted) {
       abort.abort();
-    });
+    } else {
+      request.signal.addEventListener("abort", () => {
+        abort.abort();
+      });
+    }
     const context = { request, env, ctx, abort, requestId: crypto.randomUUID(), startedAt };
     const response = await respond(context);
     const tagged = new Response(response.body, response);

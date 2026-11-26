@@ -14,7 +14,17 @@ const pattern = z.string().min(1).max(800).refine(isRegex, "must be a regular ex
 const planId = z.string().regex(/^[a-z][a-z0-9_-]{0,30}$/);
 const tier = z.enum(["fast", "balanced"]);
 const effort = z.enum(["low", "medium", "high"]);
-const origins = z.array(z.url()).max(20);
+const isPureOrigin = (value: string): boolean => {
+  try {
+    return new URL(value).origin === value;
+  } catch {
+    return false;
+  }
+};
+
+const origins = z
+  .array(z.url().refine(isPureOrigin, "must be an origin without a path or trailing slash"))
+  .max(20);
 const outputTokens = z.number().int().min(256).max(4000);
 const systemPrompt = z.string().min(1).max(400_000);
 
@@ -218,16 +228,21 @@ const planNames = (tenant: Draft): string[] => {
   return [...Object.values(authn.products), ...optional];
 };
 
-const httpHosts = (tenant: Draft): string[] => {
+const httpToolsAllowed = (tenant: Draft): boolean => {
   if (tenant.agent.kind !== "chat") {
-    return [];
+    return true;
   }
   return tenant.agent.contracts
     .flatMap((contract) => contract.tools)
-    .flatMap((tool) =>
-      tool.run.kind === "http" && URL.canParse(tool.run.url) ? [tool.run.url] : [],
-    )
-    .map((url) => new URL(url).hostname);
+    .every((tool) => {
+      if (tool.run.kind !== "http") {
+        return true;
+      }
+      if (!URL.canParse(tool.run.url)) {
+        return false;
+      }
+      return tenant.egress.allowedHosts.includes(new URL(tool.run.url).hostname);
+    });
 };
 
 const hasUniqueVersions = (tenant: Draft): boolean => {
@@ -316,13 +331,10 @@ export const tenantSchema = draftSchema
     message: "an anonymous tenant can only run a gated agent",
     path: ["agent"],
   })
-  .refine(
-    (tenant) => httpHosts(tenant).every((host) => tenant.egress.allowedHosts.includes(host)),
-    {
-      message: "every http tool must call a host listed in egress.allowedHosts",
-      path: ["egress"],
-    },
-  )
+  .refine(httpToolsAllowed, {
+    message: "every http tool must call a host listed in egress.allowedHosts",
+    path: ["egress"],
+  })
   .refine(hasUniqueVersions, { message: "contract versions must be unique", path: ["agent"] })
   .refine(serverToolsOnlyRead, {
     message: "a tool the runtime runs must have the read effect",

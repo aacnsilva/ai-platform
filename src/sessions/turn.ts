@@ -108,8 +108,8 @@ export interface CommitInput {
   tokensPerChar: number | null;
 }
 
-const spentAfter = (record: SessionRecord, replay: Replay | null): string[] =>
-  replay === null || record.replay === null
+const spentAfter = (record: SessionRecord): string[] =>
+  record.replay === null
     ? record.spentKeys
     : [...record.spentKeys, record.replay.key].slice(-KEPT_KEYS);
 
@@ -123,8 +123,8 @@ export const commitTurn = (
         count: record.count + input.appended,
         pending: input.pending,
         lease: null,
-        replay: input.replay ?? record.replay,
-        spentKeys: spentAfter(record, input.replay),
+        replay: input.replay,
+        spentKeys: spentAfter(record),
         tokensPerChar: input.tokensPerChar ?? record.tokensPerChar,
         updatedAt: input.now,
       }
@@ -134,7 +134,10 @@ export type Release =
   { kind: "kept"; record: SessionRecord } | { kind: "emptied" } | { kind: "untouched" };
 
 const hasNothing = (record: SessionRecord): boolean =>
-  record.count === 0 && record.pending === null && record.replay === null;
+  record.count === 0 &&
+  record.pending === null &&
+  record.replay === null &&
+  record.spentKeys.length === 0;
 
 export const releaseTurn = (record: SessionRecord | null, leaseId: string): Release => {
   if (!holds(record, leaseId)) {

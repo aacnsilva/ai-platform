@@ -172,6 +172,7 @@ const tracking = (listeners: Listeners, onStart: () => void): Listeners => ({
 export const callModel = async (call: ModelCall): Promise<ModelOutcome> => {
   const { spend, reservation } = call;
   let started = false;
+  let settled = false;
   const listeners = tracking(call.listeners, () => {
     started = true;
   });
@@ -188,6 +189,7 @@ export const callModel = async (call: ModelCall): Promise<ModelOutcome> => {
       model: routed.model,
       usdPerEur: spend.tenant.limits.usdPerEur,
     });
+    settled = true;
     await spend.ledger.settle({
       now: Date.now(),
       reservationId: reservation.id,
@@ -197,6 +199,9 @@ export const callModel = async (call: ModelCall): Promise<ModelOutcome> => {
   } catch (error) {
     if (error instanceof RoutingFailure) {
       return failed(spend, reservation, error);
+    }
+    if (!settled) {
+      await releasePool(spend, reservation).catch(() => undefined);
     }
     throw error;
   }

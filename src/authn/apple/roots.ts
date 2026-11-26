@@ -98,3 +98,16 @@ export const pinnedRoots = (
   }
   return roots;
 };
+
+let cachedAttestRoots: readonly X509Certificate[] | null | undefined;
+let cachedStoreRoots: readonly X509Certificate[] | null | undefined;
+
+export const defaultAttestRoots = (): readonly X509Certificate[] | null => {
+  cachedAttestRoots ??= pinnedRoots(APP_ATTEST_ROOT_PEMS, APP_ATTEST_ROOT_FINGERPRINTS);
+  return cachedAttestRoots;
+};
+
+export const defaultStoreRoots = (): readonly X509Certificate[] | null => {
+  cachedStoreRoots ??= pinnedRoots(STOREKIT_ROOT_PEMS, STOREKIT_ROOT_FINGERPRINTS);
+  return cachedStoreRoots;
+};

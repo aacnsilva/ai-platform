@@ -1,3 +1,4 @@
+import { utf8ByteLength } from "../http/read-body";
 import { Rejection } from "../http/respond";
 import type {
   MessageBlock,
@@ -51,7 +52,7 @@ const cleanText = (value: unknown, code: string): string =>
   typeof value === "string" && !hasControls(value) ? value.trim() : reject(code);
 
 export const parseBody = (raw: string, maxBytes: number): Record<string, unknown> => {
-  if (raw.length > maxBytes) {
+  if (utf8ByteLength(raw) > maxBytes) {
     return reject("too_large");
   }
   try {
@@ -388,6 +389,9 @@ const readSessionId = (value: unknown): string | undefined => {
 };
 
 const readStoredInput = (body: Record<string, unknown>, rules: ReadRules): StoredInput => {
+  if (body["toolResults"] !== undefined && body["message"] !== undefined) {
+    return reject("bad_content");
+  }
   if (body["toolResults"] !== undefined) {
     return { kind: "tool_results", raw: body["toolResults"] };
   }

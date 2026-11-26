@@ -11,6 +11,7 @@ export interface AccountClaims {
   plan: string;
 }
 
+const MAX_CACHED_KEYS = 200;
 const keyCache = new Map<string, Promise<CryptoKey>>();
 
 const unauthorized = (): never => {
@@ -55,7 +56,18 @@ const importKey = async (authn: AccountTokenAuthn, kid: unknown): Promise<Crypto
   if (cached !== undefined) {
     return cached;
   }
-  const imported = crypto.subtle.importKey("jwk", entry.jwk, ECDSA, false, ["verify"]);
+  const imported = crypto.subtle
+    .importKey("jwk", entry.jwk, ECDSA, false, ["verify"])
+    .catch((error: unknown) => {
+      keyCache.delete(cacheKey);
+      throw error;
+    });
+  if (keyCache.size >= MAX_CACHED_KEYS) {
+    const oldest = keyCache.keys().next().value;
+    if (oldest !== undefined) {
+      keyCache.delete(oldest);
+    }
+  }
   keyCache.set(cacheKey, imported);
   return imported;
 };

@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import course from "../examples/tenants/course.tenant.json" with { type: "json" };
 import { languageInstruction, refusalFor, systemFor, systemTail } from "../src/agent/chat-prompt";
 import { createChatStream } from "../src/agent/chat-stream";
-import { parseChat } from "../src/gateway/chat-body";
+import { parseChat, parseStoredTurn } from "../src/gateway/chat-body";
+import { parseConversation } from "../src/gateway/conversation";
 import { Rejection } from "../src/http/respond";
 import type { ModelMessage } from "../src/llm/provider";
 import {
@@ -135,6 +136,33 @@ describe("chat request", () => {
       { role: "user", content: "q" },
     ];
     expect(codeOf(() => parseChat(body({ messages }), small))).toBe("too_long");
+  });
+
+  it("measures body size in UTF-8 bytes and rejects ambiguous stored turns", () => {
+    const stored = agentOf({ state: "stored", input: { maxBodyBytes: 260 } });
+    expect(
+      codeOf(() =>
+        parseStoredTurn(
+          body({
+            message: "hi",
+            toolResults: [{ type: "tool_result", tool_use_id: "a", content: "ok" }],
+          }),
+          stored,
+        ),
+      ),
+    ).toBe("bad_content");
+    const multibyte = body({ messages: [{ role: "user", content: "€".repeat(100) }] });
+    expect(multibyte.length).toBeLessThan(260);
+    expect(
+      codeOf(() =>
+        parseConversation(multibyte, {
+          maxMessages: 6,
+          maxUserChars: 800,
+          maxAssistantChars: 800,
+          maxBodyBytes: 260,
+        }),
+      ),
+    ).toBe("too_large");
   });
 });
 
@@ -319,6 +347,16 @@ describe("tools", () => {
     }
     expect(resolveUrl(template, { course: "bikes" }, hosts)).toBeNull();
     expect(resolveUrl("https://evil.example/{slug}", { slug: "x" }, hosts)).toBeNull();
+    const queryUrl = resolveUrl(
+      "https://guides.example/api/{course}?q={query}&since={since}",
+      { course: "bikes", query: "brake pad wear", since: "2026-11-26T12:00:00Z" },
+      hosts,
+    );
+    expect(queryUrl?.searchParams.get("q")).toBe("brake pad wear");
+    expect(queryUrl?.searchParams.get("since")).toBe("2026-11-26T12:00:00Z");
+    expect(
+      resolveUrl("https://guides.example/api/bikes?q={query}", { query: "bad\u0000" }, hosts),
+    ).toBeNull();
   });
 
   it("hashes a contract the same whatever the key order, and differently when a tool changes", async () => {

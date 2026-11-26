@@ -9,6 +9,8 @@ const MESSAGE_PREFIX = "message:";
 const LEGACY_KEY = "session";
 const INDEX_DIGITS = 10;
 const KEYS_PER_PUT = 100;
+const DEFAULT_READ_LIMIT = 500;
+const MAX_READ_LIMIT = 500;
 
 export type Begun =
   | { kind: "started"; history: string[]; pending: string | null; tokensPerChar: number | null }
@@ -31,15 +33,41 @@ export interface CommitCall extends LeaseCall {
   tokensPerChar: number | null;
 }
 
+export interface ReadOptions {
+  limit?: number;
+  before?: number;
+}
+
 export interface StoredSession {
   owner: string;
   updatedAt: number;
   pending: string | null;
   messages: string[];
+  nextBefore: number | null;
 }
 
 const messageKey = (index: number): string =>
   `${MESSAGE_PREFIX}${String(index).padStart(INDEX_DIGITS, "0")}`;
+
+const boundedLimit = (limit: number | undefined): number =>
+  Math.max(1, Math.min(MAX_READ_LIMIT, limit ?? DEFAULT_READ_LIMIT));
+
+interface WriteBatch {
+  record: SessionRecord;
+  from: number;
+  messages: readonly string[];
+}
+
+const writeIn = async (txn: DurableObjectTransaction, batch: WriteBatch): Promise<void> => {
+  const entries = batch.messages.map(
+    (message, index) => [messageKey(batch.from + index), message] as const,
+  );
+  const puts: Promise<void>[] = [txn.put(RECORD_KEY, batch.record)];
+  for (let start = 0; start < entries.length; start += KEYS_PER_PUT) {
+    puts.push(txn.put(Object.fromEntries(entries.slice(start, start + KEYS_PER_PUT))));
+  }
+  await Promise.all(puts);
+};
 
 export class Session extends DurableObject<Env> {
   async begin(input: BeginCall): Promise<Begun> {
@@ -70,7 +98,10 @@ export class Session extends DurableObject<Env> {
     if (committed === null) {
       return false;
     }
-    await this.write(committed, record?.count ?? 0, input.messages);
+    const from = record?.count ?? 0;
+    await this.ctx.storage.transaction(async (txn) => {
+      await writeIn(txn, { record: committed, from, messages: input.messages });
+    });
     return true;
   }
 
@@ -84,16 +115,22 @@ export class Session extends DurableObject<Env> {
     }
   }
 
-  async read(): Promise<StoredSession | null> {
+  async read(options: ReadOptions = {}): Promise<StoredSession | null> {
     const record = await this.record();
-    return record === null
-      ? null
-      : {
-          owner: record.owner,
-          updatedAt: record.updatedAt,
-          pending: record.pending,
-          messages: await this.messages(record.count),
-        };
+    if (record === null) {
+      return null;
+    }
+    const limit = boundedLimit(options.limit);
+    const end = Math.max(0, Math.min(record.count, options.before ?? record.count));
+    const messages = await this.page(end, limit);
+    const firstIndex = end - messages.length;
+    return {
+      owner: record.owner,
+      updatedAt: record.updatedAt,
+      pending: options.before === undefined ? record.pending : null,
+      messages,
+      nextBefore: firstIndex > 0 ? firstIndex : null,
+    };
   }
 
   async clear(): Promise<void> {
@@ -110,8 +147,10 @@ export class Session extends DurableObject<Env> {
     if (migrated === null) {
       return null;
     }
-    await this.ctx.storage.deleteAll();
-    await this.write(migrated.record, 0, migrated.messages);
+    await this.ctx.storage.transaction(async (txn) => {
+      await txn.delete(LEGACY_KEY);
+      await writeIn(txn, { record: migrated.record, from: 0, messages: migrated.messages });
+    });
     return migrated.record;
   }
 
@@ -127,14 +166,16 @@ export class Session extends DurableObject<Env> {
     return [...found.values()].reverse();
   }
 
-  private async write(record: SessionRecord, from: number, messages: string[]): Promise<void> {
-    const entries = messages.map((message, index) => [messageKey(from + index), message] as const);
-    const puts: Promise<void>[] = [this.ctx.storage.put(RECORD_KEY, record)];
-    for (let start = 0; start < entries.length; start += KEYS_PER_PUT) {
-      puts.push(
-        this.ctx.storage.put(Object.fromEntries(entries.slice(start, start + KEYS_PER_PUT))),
-      );
+  private async page(end: number, limit: number): Promise<string[]> {
+    if (end <= 0) {
+      return [];
     }
-    await Promise.all(puts);
+    const found = await this.ctx.storage.list<string>({
+      prefix: MESSAGE_PREFIX,
+      end: messageKey(end),
+      reverse: true,
+      limit,
+    });
+    return [...found.values()].reverse();
   }
 }

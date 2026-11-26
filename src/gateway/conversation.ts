@@ -1,3 +1,4 @@
+import { utf8ByteLength } from "../http/read-body";
 import { Rejection } from "../http/respond";
 import type { ChatMessage } from "../llm/provider";
 import type { InputLimits } from "../tenants/schema";
@@ -53,7 +54,7 @@ const fromFirstQuestion = (messages: ChatMessage[]): ChatMessage[] => {
 };
 
 export const parseConversation = (raw: string, limits: InputLimits): ChatMessage[] => {
-  if (raw.length > limits.maxBodyBytes) {
+  if (utf8ByteLength(raw) > limits.maxBodyBytes) {
     return reject("too_large");
   }
   let body: unknown;

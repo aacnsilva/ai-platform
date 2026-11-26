@@ -293,6 +293,9 @@ describe("circuit breaker", () => {
     const left = await failingWith("aborted", breaker)();
     expect(left).toBeInstanceOf(RoutingFailure);
     expect(left).toMatchObject({ detail: { aborted: true, attempts: 1 } });
+    const rejected = await failingWith("rejected", breaker)();
+    expect(rejected).toBeInstanceOf(RoutingFailure);
+    expect(rejected).toMatchObject({ detail: { aborted: false, billable: false, attempts: 1 } });
   });
 
   it("shares what one worker copy learned with the next, without waiting on the request path", async () => {

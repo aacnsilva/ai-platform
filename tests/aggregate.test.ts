@@ -92,4 +92,16 @@ describe("aggregate", () => {
     );
     expect(summary.totals.latencyP50).toBeNull();
   });
+
+  it("aggregates 50,000 events in one bucket in linear time", () => {
+    const many = Array.from({ length: 50_000 }, (_, index) =>
+      event({ at: 1000 + (index % 1000), latencyMs: 50 + (index % 200) }),
+    );
+    const startedAt = performance.now();
+    const summary = summarize(many, { since: 0, until: MINUTE, bucketMs: MINUTE });
+    const elapsedMs = performance.now() - startedAt;
+    expect(summary.totals.requests).toBe(50_000);
+    expect(summary.recent).toHaveLength(50);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
 });

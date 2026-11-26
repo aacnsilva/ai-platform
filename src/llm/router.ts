@@ -62,7 +62,7 @@ export const routeWithFallback = async (options: RouteOptions): Promise<Routed> 
       }
       const billable = options.hasStarted() || kind === "timeout";
       last = { model, attempts, billable, aborted: kind === "aborted" };
-      if (billable || last.aborted) {
+      if (billable || last.aborted || kind === "rejected") {
         break;
       }
     }

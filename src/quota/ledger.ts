@@ -1,5 +1,5 @@
 const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
+export const DAY_MS = 24 * HOUR_MS;
 export const RESERVATION_TTL_MS = 2 * 60 * 1000;
 export const LAPSED_TTL_MS = HOUR_MS;
 const MAX_TRACKED_IPS = 2000;

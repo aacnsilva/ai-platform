@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { readBoundedText } from "../http/read-body";
 import { json, Rejection } from "../http/respond";
 import { deleteTenant, listTenants, loadStoredTenant, saveTenant } from "../tenants/registry";
 import type { Tenant } from "../tenants/schema";
@@ -29,10 +30,7 @@ const contractSummaries = async (tenant: Tenant): Promise<ContractSummary[]> => 
 };
 
 const readTenant = async (request: Request): Promise<Tenant> => {
-  const raw = await request.text();
-  if (raw.length > MAX_TENANT_BYTES) {
-    throw new Rejection(400, "too_large");
-  }
+  const raw = await readBoundedText(request, MAX_TENANT_BYTES);
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -83,8 +81,13 @@ const validate = async (request: Request): Promise<Response> => {
   return json({ ok: true, tenant, contracts: await contractSummaries(tenant) }, 200);
 };
 
-const remove = async (env: Env, id: string): Promise<Response> =>
-  json({ ok: true, removed: await deleteTenant(env, id) }, 200);
+const remove = async (env: Env, id: string): Promise<Response> => {
+  const removed = await deleteTenant(env, id);
+  if (removed) {
+    await env.KNOWLEDGE.get(env.KNOWLEDGE.idFromName(`knowledge:${id}`)).clear();
+  }
+  return json({ ok: true, removed }, 200);
+};
 
 const byId = async (request: Request, env: Env, id: string): Promise<Response> => {
   switch (request.method) {

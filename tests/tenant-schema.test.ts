@@ -33,9 +33,28 @@ describe("tenant schema", () => {
     ["a pool above the hard ceiling", { limits: { ...demo.limits, poolEurPerMonth: 5001 } }],
     ["a network limit of zero", { limits: { ...demo.limits, ipPerHour: 0 } }],
     ["an origin that is not a URL", { authn: { kind: "anonymous", allowedOrigins: ["nope"] } }],
+    [
+      "an origin with a trailing slash",
+      { authn: { kind: "anonymous", allowedOrigins: ["https://example.com/"] } },
+    ],
+    [
+      "an origin with a path",
+      { authn: { kind: "anonymous", allowedOrigins: ["https://example.com/app"] } },
+    ],
     ["an unknown authenticator", { authn: { kind: "magic", allowedOrigins: [] } }],
   ])("refuses %s", (_name, overrides) => {
     expect(tenantSchema.safeParse({ ...demo, ...overrides }).success).toBe(false);
+  });
+
+  it("refuses an unparseable http tool url", () => {
+    const [contract] = course.agent.contracts;
+    const [fetchTool] = contract?.tools ?? [];
+    const dynamicHost = {
+      ...contract,
+      tools: [{ ...fetchTool, run: { kind: "http", url: "https://{host}/items" } }],
+    };
+    const broken = { ...course, agent: { ...course.agent, contracts: [dynamicHost] } };
+    expect(tenantSchema.safeParse(broken).success).toBe(false);
   });
 
   it("refuses a locale pattern that is not a regular expression", () => {

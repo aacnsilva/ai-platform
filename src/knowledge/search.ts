@@ -7,6 +7,7 @@ export interface StoredChunk {
   plans: string[] | null;
   model: string | null;
   vector: Float32Array | null;
+  tokens?: readonly string[];
 }
 
 export interface SearchInput {
@@ -40,7 +41,7 @@ export const searchChunks = (chunks: readonly StoredChunk[], input: SearchInput)
   const visible = chunks.filter((chunk) => isVisible(chunk, input.plan));
   const keyword = bm25(
     tokenize(input.query),
-    visible.map((chunk) => tokenize(`${chunk.title} ${chunk.text}`)),
+    visible.map((chunk) => chunk.tokens ?? tokenize(`${chunk.title} ${chunk.text}`)),
   );
   const order = fuse([rankedIndexes(keyword), rankedIndexes(vectorScores(visible, input))]);
   return order.slice(0, input.topK).flatMap((index) => {

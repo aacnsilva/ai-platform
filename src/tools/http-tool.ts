@@ -7,10 +7,12 @@ export interface HttpToolOptions {
   allowedHosts: readonly string[];
   maxChars: number;
   fetcher: typeof fetch;
+  signal?: AbortSignal;
 }
 
 const PLACEHOLDER = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
 const SAFE_VALUE = /^[A-Za-z0-9._-]{1,100}$/;
+const MAX_QUERY_VALUE_CHARS = 200;
 const AUTHORITY = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i;
 const ENCODED_DOT = /%2e/gi;
 const TIMEOUT_MS = 5000;
@@ -23,14 +25,42 @@ const safeText = (value: unknown): string | null => {
   return typeof text === "string" && SAFE_VALUE.test(text) && !text.includes("..") ? text : null;
 };
 
-const fill = (template: string, input: Record<string, unknown>): string | null => {
-  const names = Array.from(template.matchAll(PLACEHOLDER), (match) => match[1] ?? "");
-  if (names.some((name) => safeText(input[name]) === null)) {
+const hasControls = (text: string): boolean =>
+  Array.from(text).some((char) => char.charCodeAt(0) <= 0x1f || char.charCodeAt(0) === 0x7f);
+
+const safeQueryText = (value: unknown): string | null => {
+  const text = typeof value === "number" && Number.isFinite(value) ? String(value) : value;
+  if (typeof text !== "string") {
     return null;
   }
-  return template.replaceAll(PLACEHOLDER, (_match, name: string) =>
-    encodeURIComponent(safeText(input[name]) ?? ""),
+  const trimmed = text.trim();
+  return trimmed !== "" && trimmed.length <= MAX_QUERY_VALUE_CHARS && !hasControls(trimmed)
+    ? trimmed
+    : null;
+};
+
+const fillPart = (
+  part: string,
+  input: Record<string, unknown>,
+  reader: (value: unknown) => string | null,
+): string | null => {
+  const names = Array.from(part.matchAll(PLACEHOLDER), (match) => match[1] ?? "");
+  if (names.some((name) => reader(input[name]) === null)) {
+    return null;
+  }
+  return part.replaceAll(PLACEHOLDER, (_match, name: string) =>
+    encodeURIComponent(reader(input[name]) ?? ""),
   );
+};
+
+const fill = (template: string, input: Record<string, unknown>): string | null => {
+  const queryAt = template.indexOf("?");
+  if (queryAt === -1) {
+    return fillPart(template, input, safeText);
+  }
+  const base = fillPart(template.slice(0, queryAt), input, safeText);
+  const query = fillPart(template.slice(queryAt + 1), input, safeQueryText);
+  return base === null || query === null ? null : `${base}?${query}`;
 };
 
 const hasDotSegment = (filled: string): boolean => {
@@ -60,16 +90,27 @@ const readCapped = async (response: Response, maxBytes: number): Promise<string>
   const decoder = new TextDecoder();
   let text = "";
   let received = 0;
-  while (received < maxBytes) {
-    const chunk: ReadableStreamReadResult<unknown> = await reader.read();
-    if (chunk.done || !(chunk.value instanceof Uint8Array)) {
-      break;
+  try {
+    while (received < maxBytes) {
+      const chunk: ReadableStreamReadResult<unknown> = await reader.read();
+      if (chunk.done || !(chunk.value instanceof Uint8Array)) {
+        break;
+      }
+      const remaining = maxBytes - received;
+      const slice =
+        chunk.value.byteLength > remaining ? chunk.value.subarray(0, remaining) : chunk.value;
+      received += slice.byteLength;
+      text += decoder.decode(slice, { stream: true });
     }
-    received += chunk.value.byteLength;
-    text += decoder.decode(chunk.value, { stream: true });
+  } finally {
+    await reader.cancel().catch(() => undefined);
   }
-  await reader.cancel();
   return text + decoder.decode();
+};
+
+const fetchSignal = (caller: AbortSignal | undefined): AbortSignal => {
+  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+  return caller === undefined ? timeout : AbortSignal.any([caller, timeout]);
 };
 
 export const runHttpTool = async (
@@ -84,7 +125,7 @@ export const runHttpTool = async (
   try {
     const response = await options.fetcher(url, {
       redirect: "manual",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: fetchSignal(options.signal),
       headers: { accept: "application/json, text/plain" },
     });
     if (!response.ok) {

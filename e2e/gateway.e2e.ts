@@ -70,6 +70,18 @@ describe("gateway", () => {
   it("refuses other methods on a tenant route", async () => {
     const response = await fetch(runsUrl(tenant), { method: "DELETE" });
     expect(response.status).toBe(405);
+    expect((await fetch(`${runsUrl(tenant)}/extra`, { method: "POST" })).status).toBe(404);
+    expect(
+      (await fetch(`${runtimeUrl()}/v1/tenants/${tenant}/status/extra`, { method: "GET" })).status,
+    ).toBe(404);
+  });
+
+  it("enforces body size caps in UTF-8 bytes", async () => {
+    const response = await postRun(tenant, {
+      messages: [{ role: "user", content: "€".repeat(4500) }],
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "too_large" });
   });
 
   it("keeps the admin API behind the admin token", async () => {

@@ -7,15 +7,16 @@ import type { RecordedCall } from "./support/mock-provider.ts";
 
 interface Transcript {
   messages: { role: string; text: string }[];
+  nextBefore?: number;
 }
 
 const transcriptOf = async (
   tenant: CreatedTenant,
   token: string,
-  sessionId: string,
+  sessionPath: string,
 ): Promise<Transcript> =>
   (await (
-    await fetch(`${runtimeUrl()}/v1/tenants/${tenant.id}/sessions/${sessionId}`, {
+    await fetch(`${runtimeUrl()}/v1/tenants/${tenant.id}/sessions/${sessionPath}`, {
       headers: { authorization: `Bearer ${token}`, origin: ALLOWED_ORIGIN },
     })
   ).json()) as Transcript;
@@ -143,5 +144,73 @@ describe("turns on a stored session", () => {
     );
     expect(next.status).toBe(200);
     expect((await transcriptOf(tenant, token, sessionId)).messages).toHaveLength(4);
+  });
+
+  it("retires an idempotency key after an unkeyed turn commits", async () => {
+    const token = await tokenFor(tenant, "t-retire", "pro");
+    const first = await keyed(token, turn("RETIRE one"), "retire-1");
+    const sessionId = first.body.sessionId ?? "";
+    expect((await post(tenant.id, token, turn("RETIRE two", sessionId))).status).toBe(200);
+    const stale = await keyed(token, turn("RETIRE one", sessionId), "retire-1");
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toBe("idempotency_key_spent");
+  });
+
+  it("returns HTTP 409 on SSE session_busy and marks streamed replays", async () => {
+    const token = await tokenFor(tenant, "t-sse", "pro");
+    const opening = await keyed(token, turn("SSE-REPLAY first"), "sse-1");
+    const sessionId = opening.body.sessionId ?? "";
+    const replayRes = await fetch(`${runtimeUrl()}/v1/tenants/${tenant.id}/runs`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "text/event-stream",
+        origin: ALLOWED_ORIGIN,
+        authorization: `Bearer ${token}`,
+        "idempotency-key": "sse-1",
+      },
+      body: JSON.stringify(turn("SSE-REPLAY first")),
+    });
+    expect(replayRes.status).toBe(200);
+    expect(replayRes.headers.get("idempotent-replay")).toBe("true");
+    expect(await replayRes.text()).toContain('"replayed":true');
+    const [first, second] = await Promise.all([
+      post(tenant.id, token, turn("SSE-BUSY-A SLOW", sessionId)),
+      fetch(`${runtimeUrl()}/v1/tenants/${tenant.id}/runs`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "text/event-stream",
+          origin: ALLOWED_ORIGIN,
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(turn("SSE-BUSY-B SLOW", sessionId)),
+      }),
+    ]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    if (second.status === 409) {
+      expect(second.headers.get("retry-after")).toBe("1");
+      expect(await second.json()).toMatchObject({ error: "session_busy", retryAfterSeconds: 1 });
+    }
+  });
+
+  it("paginates a session transcript with limit and before", async () => {
+    const token = await tokenFor(tenant, "t-page", "pro");
+    const sessionId = (await post(tenant.id, token, turn("PAGE one"))).body.sessionId ?? "";
+    await post(tenant.id, token, turn("PAGE two", sessionId));
+    await post(tenant.id, token, turn("PAGE three", sessionId));
+    const latest = await transcriptOf(tenant, token, `${sessionId}?limit=2`);
+    expect(latest.messages.map((message) => message.text)).toEqual([
+      "PAGE three",
+      expect.any(String),
+    ]);
+    expect(latest.nextBefore).toBe(4);
+    const middle = await transcriptOf(tenant, token, `${sessionId}?limit=2&before=4`);
+    expect(middle.messages[0]?.text).toBe("PAGE two");
+    expect(middle.nextBefore).toBe(2);
+    const oldest = await transcriptOf(tenant, token, `${sessionId}?limit=2&before=2`);
+    expect(oldest.messages[0]?.text).toBe("PAGE one");
+    expect(oldest.nextBefore).toBeUndefined();
   });
 });

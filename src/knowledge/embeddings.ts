@@ -5,7 +5,7 @@ const TIMEOUT_MS = 15_000;
 
 export interface Embedder {
   model: string;
-  embed: (texts: readonly string[]) => Promise<number[][]>;
+  embed: (texts: readonly string[], signal?: AbortSignal) => Promise<number[][]>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -25,37 +25,56 @@ const vectorsOf = (body: unknown, expected: number): number[][] => {
   return vectors;
 };
 
-const embedBatch = async (
-  env: Env,
-  model: string,
-  input: readonly string[],
-): Promise<number[][]> => {
-  const response = await fetch(`${env.EMBEDDINGS_BASE_URL ?? ""}/embeddings`, {
+interface BatchCall {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  input: readonly string[];
+  signal: AbortSignal | undefined;
+}
+
+const fetchSignal = (caller: AbortSignal | undefined): AbortSignal => {
+  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+  return caller === undefined ? timeout : AbortSignal.any([caller, timeout]);
+};
+
+const embedBatch = async (call: BatchCall): Promise<number[][]> => {
+  const response = await fetch(`${call.baseUrl}/embeddings`, {
     method: "POST",
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: fetchSignal(call.signal),
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${env.EMBEDDINGS_API_KEY ?? ""}`,
+      authorization: `Bearer ${call.apiKey}`,
     },
-    body: JSON.stringify({ model, input }),
+    body: JSON.stringify({ model: call.model, input: call.input }),
   });
   if (!response.ok) {
     throw new Error(`The embeddings service answered ${String(response.status)}.`);
   }
-  return vectorsOf(await response.json(), input.length);
+  return vectorsOf(await response.json(), call.input.length);
 };
 
 export const embedderFor = (env: Env, model: string | undefined): Embedder | null => {
-  const configured = env.EMBEDDINGS_BASE_URL !== undefined && env.EMBEDDINGS_BASE_URL !== "";
-  if (model === undefined || !configured) {
+  const rawUrl = env.EMBEDDINGS_BASE_URL ?? "";
+  if (model === undefined || rawUrl === "") {
     return null;
   }
+  const baseUrl = rawUrl.replace(/\/+$/, "");
+  const apiKey = env.EMBEDDINGS_API_KEY ?? "";
   return {
     model,
-    embed: async (texts) => {
+    embed: async (texts, signal) => {
       const vectors: number[][] = [];
       for (let start = 0; start < texts.length; start += BATCH) {
-        vectors.push(...(await embedBatch(env, model, texts.slice(start, start + BATCH))));
+        vectors.push(
+          ...(await embedBatch({
+            baseUrl,
+            apiKey,
+            model,
+            input: texts.slice(start, start + BATCH),
+            signal,
+          })),
+        );
       }
       return vectors;
     },

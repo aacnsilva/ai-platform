@@ -275,4 +275,174 @@ describe("stored session turn", () => {
     expect(JSON.stringify(scene.stored.log)).not.toContain(JPEG);
     expect(scene.stored.pending).toBeNull();
   });
+
+  it("stops client-tool handbacks once total tool rounds reach maxRounds", async () => {
+    let calls = 0;
+    const tenant = tenantSchema.parse({
+      ...course,
+      agent: { ...course.agent, maxRounds: 2 },
+    });
+    const agent = tenant.agent as ChatAgent;
+    const contract = agent.contracts[0];
+    if (contract === undefined) {
+      throw new Error("contract expected");
+    }
+    const stored = emptyStore();
+    const refunds: number[] = [];
+    const runWith = (input: SessionTurn["input"], leaseId: string): Promise<unknown> =>
+      runSessionTurn({
+        base: {
+          spend: {
+            tenant,
+            tier: "fast",
+            effortOverride: null,
+            ip: "1.1.1.1",
+            skipNetworkLimit: true,
+            provider: {
+              failureKind: () => "unavailable",
+              complete: () => {
+                calls += 1;
+                return Promise.resolve({
+                  text: "",
+                  blocks: showCard(`c${String(calls)}`),
+                  stopReason: "tool_use",
+                  usage: USAGE,
+                });
+              },
+            },
+            breaker: createBreaker(),
+            ledger: {
+              begin: () => Promise.resolve({ ok: true }),
+              settle: () => Promise.resolve(),
+              release: () => Promise.resolve(),
+            },
+          },
+          agent,
+          principal: {
+            subjectId: "ana",
+            planId: "basic",
+            messagesPerMonth: 100,
+            tier: "fast",
+            authenticated: true,
+            evaluated: false,
+            effortOverride: null,
+          },
+          contract,
+          quota: {
+            begin: () =>
+              Promise.resolve({ ok: true, used: 1, limit: 100, spent: 1, usedFreeRound: false }),
+            refund: (r) => {
+              refunds.push(r.spent);
+              return Promise.resolve();
+            },
+          },
+          context: {},
+        },
+        store: portOn(stored, { leaseId }),
+        input,
+        tools: {
+          allowedHosts: [],
+          maxChars: 1000,
+          fetcher: () => Promise.reject(new Error("no network")),
+          searchKnowledge: () => Promise.resolve([]),
+        },
+        listenersForRound: () => ({}),
+      });
+    const r1 = await runWith(ask("loop"), "l1");
+    expect(r1).toMatchObject({ status: 200, outcome: "tool_round" });
+    const r2 = await runWith(
+      { kind: "tool_results", raw: [{ type: "tool_result", tool_use_id: "c1", content: "ok" }] },
+      "l2",
+    );
+    expect(r2).toMatchObject({ status: 200, outcome: "tool_round" });
+    const r3 = await runWith(
+      { kind: "tool_results", raw: [{ type: "tool_result", tool_use_id: "c2", content: "ok" }] },
+      "l3",
+    );
+    expect(r3).toMatchObject({ status: 502, outcome: "too_many_rounds" });
+    expect(refunds).toEqual([1]);
+  });
+
+  it("refunds earlier rounds when a later round in the same turn fails", async () => {
+    const tenant = tenantSchema.parse({
+      ...course,
+      agent: { ...course.agent, maxRounds: 3, counting: "questions_only" },
+    });
+    const agent = tenant.agent as ChatAgent;
+    const contract = agent.contracts[0];
+    if (contract === undefined) {
+      throw new Error("contract expected");
+    }
+    const stored = emptyStore();
+    let round = 0;
+    let used = 0;
+    const run = await runSessionTurn({
+      base: {
+        spend: {
+          tenant,
+          tier: "fast",
+          effortOverride: null,
+          ip: "1.1.1.1",
+          skipNetworkLimit: true,
+          provider: {
+            failureKind: () => "unavailable",
+            complete: () => {
+              round += 1;
+              if (round === 1) {
+                return Promise.resolve({
+                  text: "",
+                  blocks: [
+                    { type: "tool_use", id: "k1", name: "search_knowledge", input: { query: "x" } },
+                  ],
+                  stopReason: "tool_use",
+                  usage: USAGE,
+                });
+              }
+              return Promise.reject(new Error("boom"));
+            },
+          },
+          breaker: createBreaker(),
+          ledger: {
+            begin: () => Promise.resolve({ ok: true }),
+            settle: () => Promise.resolve(),
+            release: () => Promise.resolve(),
+          },
+        },
+        agent,
+        principal: {
+          subjectId: "ana",
+          planId: "basic",
+          messagesPerMonth: 100,
+          tier: "fast",
+          authenticated: true,
+          evaluated: false,
+          effortOverride: null,
+        },
+        contract,
+        quota: {
+          begin: (input) => {
+            const spent = input.toolRounds === 0 ? 1 : 0;
+            used += spent;
+            return Promise.resolve({ ok: true, used, limit: 100, spent, usedFreeRound: false });
+          },
+          refund: (input) => {
+            used -= input.spent;
+            return Promise.resolve();
+          },
+        },
+        context: {},
+      },
+      store: portOn(stored, { leaseId: "l1" }),
+      input: ask("search then fail"),
+      tools: {
+        allowedHosts: [],
+        maxChars: 1000,
+        fetcher: () => Promise.reject(new Error("no network")),
+        searchKnowledge: () => Promise.resolve([]),
+      },
+      listenersForRound: () => ({}),
+    });
+    expect(run).toMatchObject({ status: 502, outcome: "upstream" });
+    expect(used).toBe(0);
+  });
 });

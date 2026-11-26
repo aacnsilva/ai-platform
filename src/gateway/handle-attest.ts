@@ -1,6 +1,7 @@
 import { bytesToBase64Url, decodeBase64, verifyAttestation } from "../authn/apple";
 import { clientIp } from "../authn/authenticate";
 import { attestRoots, deviceName, keyIdFrom } from "../authn/device-authn";
+import { readBoundedText } from "../http/read-body";
 import { json, Rejection } from "../http/respond";
 import { logEvent } from "../observability/log";
 import { loadTenant } from "../tenants/registry";
@@ -22,10 +23,7 @@ interface Target {
 }
 
 const readJson = async (request: Request, maxBytes: number): Promise<Record<string, unknown>> => {
-  const raw = await request.text();
-  if (raw.length > maxBytes) {
-    throw new Rejection(400, "too_large");
-  }
+  const raw = await readBoundedText(request, maxBytes);
   try {
     const body: unknown = JSON.parse(raw);
     return isRecord(body) ? body : {};
@@ -109,11 +107,11 @@ export const handleAttest = async (
   step: string,
 ): Promise<Response> => {
   const tenant = await loadTenant(context.env, tenantId);
-  if (tenant === null || context.request.method !== "POST") {
+  if (tenant?.authn.kind !== "app_attest") {
     return json({ error: "not_found" }, 404);
   }
-  if (tenant.authn.kind !== "app_attest") {
-    return json({ error: "not_found" }, 404);
+  if (context.request.method !== "POST") {
+    return json({ error: "method_not_allowed" }, 405);
   }
   const target = { context, tenant, authn: tenant.authn };
   try {

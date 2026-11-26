@@ -185,6 +185,12 @@ describe("an attested device with a store subscription", () => {
     expect(response.status).toBe(400);
     expect(((await response.json()) as Json)["error"]).toBe("bad_attestation");
   });
+
+  it("answers OPTIONS preflight and refuses GET with 405 on attest routes", async () => {
+    const url = `${runtimeUrl()}/v1/tenants/${world.tenant.id}/attest/challenge`;
+    expect((await fetch(url, { method: "OPTIONS" })).status).toBe(204);
+    expect((await fetch(url, { method: "GET" })).status).toBe(405);
+  });
 });
 
 describe("a test environment tenant", () => {

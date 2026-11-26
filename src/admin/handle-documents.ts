@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { readBoundedText } from "../http/read-body";
 import { json, Rejection } from "../http/respond";
 import { chunkText } from "../knowledge/chunk";
 import { embedderFor } from "../knowledge/embeddings";
-import { loadTenant } from "../tenants/registry";
+import { loadStoredTenant } from "../tenants/registry";
 import type { Tenant } from "../tenants/schema";
 
 const MAX_DOCUMENT_BYTES = 600_000;
@@ -28,10 +29,7 @@ const hashOf = async (value: unknown): Promise<string> =>
   hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value))));
 
 const readDocument = async (request: Request): Promise<z.infer<typeof documentSchema>> => {
-  const raw = await request.text();
-  if (raw.length > MAX_DOCUMENT_BYTES) {
-    throw new Rejection(400, "too_large");
-  }
+  const raw = await readBoundedText(request, MAX_DOCUMENT_BYTES);
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -43,6 +41,15 @@ const readDocument = async (request: Request): Promise<z.infer<typeof documentSc
     throw new Rejection(400, "bad_document", { message: z.prettifyError(parsed.error) });
   }
   return parsed.data;
+};
+
+const assertKnownPlans = (tenant: Tenant, plans: readonly string[] | undefined): void => {
+  const unknown = (plans ?? []).filter((plan) => !(plan in tenant.plans));
+  if (unknown.length > 0) {
+    throw new Rejection(400, "bad_document", {
+      message: `Unknown plan(s): ${unknown.join(", ")}.`,
+    });
+  }
 };
 
 const vectorsFor = async (
@@ -72,10 +79,11 @@ interface Target {
 const putDocument = async (request: Request, target: Target): Promise<Response> => {
   const { env, tenant, documentId } = target;
   const document = await readDocument(request);
+  assertKnownPlans(tenant, document.plans);
   const store = env.KNOWLEDGE.get(env.KNOWLEDGE.idFromName(`knowledge:${tenant.id}`));
   const chunkChars = tenant.knowledge?.chunkChars ?? DEFAULT_CHUNK_CHARS;
-  const model = tenant.knowledge?.embeddingModel ?? null;
-  const hash = await hashOf({ document, chunkChars, model });
+  const effectiveModel = embedderFor(env, tenant.knowledge?.embeddingModel)?.model ?? null;
+  const hash = await hashOf({ document, chunkChars, model: effectiveModel });
   if ((await store.hashOf(documentId)) === hash) {
     return json({ ok: true, id: documentId, unchanged: true }, 200);
   }
@@ -97,24 +105,37 @@ const putDocument = async (request: Request, target: Target): Promise<Response> 
 
 export const isDocumentPath = (pathname: string): boolean => DOCUMENT_PATH.test(pathname);
 
-export const handleDocuments = async (request: Request, env: Env): Promise<Response> => {
-  const match = DOCUMENT_PATH.exec(new URL(request.url).pathname);
-  const tenant = match?.[1] === undefined ? null : await loadTenant(env, match[1]);
-  if (tenant === null) {
-    throw new Rejection(404, "not_found");
-  }
+const handleDocumentById = async (request: Request, target: Target): Promise<Response> => {
+  const { env, tenant, documentId } = target;
   const store = env.KNOWLEDGE.get(env.KNOWLEDGE.idFromName(`knowledge:${tenant.id}`));
-  const documentId = match?.[2];
-  if (documentId === undefined) {
-    return request.method === "GET"
-      ? json(await store.list(), 200)
-      : json({ error: "method_not_allowed" }, 405);
+  if (request.method === "GET") {
+    const document = await store.get(documentId);
+    if (document === null) {
+      throw new Rejection(404, "not_found");
+    }
+    return json(document, 200);
   }
   if (request.method === "PUT") {
-    return putDocument(request, { env, tenant, documentId });
+    return putDocument(request, target);
   }
   if (request.method === "DELETE") {
     return json({ ok: true, removed: await store.remove(documentId) }, 200);
   }
   return json({ error: "method_not_allowed" }, 405);
+};
+
+export const handleDocuments = async (request: Request, env: Env): Promise<Response> => {
+  const match = DOCUMENT_PATH.exec(new URL(request.url).pathname);
+  const tenant = match?.[1] === undefined ? null : await loadStoredTenant(env, match[1]);
+  if (tenant === null) {
+    throw new Rejection(404, "not_found");
+  }
+  const documentId = match?.[2];
+  if (documentId === undefined) {
+    const store = env.KNOWLEDGE.get(env.KNOWLEDGE.idFromName(`knowledge:${tenant.id}`));
+    return request.method === "GET"
+      ? json(await store.list(), 200)
+      : json({ error: "method_not_allowed" }, 405);
+  }
+  return handleDocumentById(request, { env, tenant, documentId });
 };

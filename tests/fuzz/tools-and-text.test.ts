@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { GateStream } from "../../src/agent/gate-stream";
+import { normalizeIp } from "../../src/authn/ip";
 import { chunkText } from "../../src/knowledge/chunk";
 import { resolveUrl, runHttpTool } from "../../src/tools/http-tool";
 
@@ -124,6 +125,48 @@ describe("fetch tool under hostile arguments", () => {
         expect(sent).toBeLessThanOrEqual(maxChars * 4 + 3 * chunk.byteLength);
       }),
       { numRuns: 200 },
+    );
+  });
+
+  it("caps an oversized single chunk to maxChars without decoding the whole payload", async () => {
+    const big = new TextEncoder().encode("a".repeat(200_000));
+    const single = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        controller.enqueue(big);
+        controller.close();
+      },
+    });
+    const output = await runHttpTool(
+      "https://api.example.test/v1/guides/{id}",
+      { id: "a" },
+      { allowedHosts: ALLOWED, maxChars: 50, fetcher: () => Promise.resolve(new Response(single)) },
+    );
+    expect(output).toEqual({ content: "a".repeat(50), isError: false });
+  });
+});
+
+describe("ip normalization under hostile text", () => {
+  it("collapses IPv6 addresses in the same /64 and unwraps IPv4-mapped addresses", () => {
+    const hex = fc.integer({ min: 0, max: 0xffff }).map((n) => n.toString(16));
+    const quad = fc.tuple(hex, hex, hex, hex);
+    fc.assert(
+      fc.property(quad, quad, quad, (prefix, hostA, hostB) => {
+        const a = `${prefix.join(":")}:${hostA.join(":")}`;
+        const b = `${prefix.join(":")}:${hostB.join(":")}`;
+        expect(normalizeIp(a)).toBe(normalizeIp(b));
+        expect(normalizeIp(a)).toBe(`${prefix.join(":")}::/64`);
+      }),
+      { numRuns: 1000 },
+    );
+    expect(normalizeIp("::ffff:203.0.113.5")).toBe("203.0.113.5");
+    expect(normalizeIp("2001:0db8:0000:0001::1%eth0")).toBe("2001:db8:0:1::/64");
+    expect(normalizeIp(null)).toBe("unknown");
+    fc.assert(
+      fc.property(fc.string({ maxLength: 80 }), (raw) => {
+        const result = normalizeIp(raw);
+        expect(result.length).toBeGreaterThan(0);
+      }),
+      { numRuns: 2000 },
     );
   });
 });

@@ -2,7 +2,7 @@ import type { Begun, SessionPort, TurnCommit } from "../agent/session-run";
 import type { Env } from "../env";
 import type { ModelMessage } from "../llm/provider";
 import type { Pending } from "./session";
-import type { Begun as StoredBegun, Session } from "./session-object";
+import type { Begun as StoredBegun, ReadOptions, Session } from "./session-object";
 import { REFUSAL_STATUS } from "./turn";
 
 export interface TurnIdentity {
@@ -17,6 +17,7 @@ export interface SessionView {
   updatedAt: number;
   awaitingToolResults: boolean;
   messages: ModelMessage[];
+  nextBefore: number | null;
 }
 
 export const sessionStub = (
@@ -63,8 +64,9 @@ const begunOf = (stored: StoredBegun): Begun => {
 
 export const readSession = async (
   stub: DurableObjectStub<Session>,
+  options?: ReadOptions,
 ): Promise<SessionView | null> => {
-  const stored = await stub.read();
+  const stored = await stub.read(options);
   if (stored === null) {
     return null;
   }
@@ -74,6 +76,7 @@ export const readSession = async (
     updatedAt: stored.updatedAt,
     awaitingToolResults: pending !== null,
     messages: [...stored.messages.map(messageOf), ...(pending?.messages ?? [])],
+    nextBefore: stored.nextBefore,
   };
 };
 
