@@ -3,43 +3,60 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tenants</title>
+    <title>AI platform — Tenants</title>
     <style>
       :root {
         color-scheme: light;
-        --plane: #f9f9f7;
-        --surface: #fcfcfb;
-        --ink: #0b0b0b;
+        --plane: #f6f6f3;
+        --surface: #ffffff;
+        --surface-2: #fafaf8;
+        --ink: #111110;
         --ink-2: #52514e;
-        --muted: #898781;
-        --grid: #e1e0d9;
-        --axis: #c3c2b7;
-        --border: rgba(11, 11, 11, 0.1);
-        --wash: rgba(11, 11, 11, 0.05);
+        --muted: #82807a;
+        --grid: #e8e7e1;
+        --axis: #c6c4ba;
+        --border: rgba(17, 17, 16, 0.1);
+        --border-strong: rgba(17, 17, 16, 0.18);
+        --wash: rgba(17, 17, 16, 0.045);
+        --wash-strong: rgba(17, 17, 16, 0.08);
+        --shadow: 0 1px 2px rgba(17, 17, 16, 0.04), 0 6px 20px rgba(17, 17, 16, 0.04);
         --s1: #2a78d6;
         --s2: #eb6834;
         --s3: #1baf7a;
-        --s4: #eda100;
-        --s5: #e87ba4;
+        --s4: #d69000;
+        --s5: #d6457b;
         --critical: #d03b3b;
+        --s1-bg: rgba(42, 120, 214, 0.12);
+        --s3-bg: rgba(27, 175, 122, 0.12);
+        --s4-bg: rgba(214, 144, 0, 0.14);
+        --critical-bg: rgba(208, 59, 59, 0.11);
       }
       @media (prefers-color-scheme: dark) {
         :root {
           color-scheme: dark;
-          --plane: #0d0d0d;
-          --surface: #1a1a19;
-          --ink: #f0efec;
-          --ink-2: #c3c2b7;
-          --muted: #898781;
-          --grid: #2c2c2a;
-          --axis: #383835;
-          --border: rgba(255, 255, 255, 0.1);
-          --wash: rgba(255, 255, 255, 0.06);
-          --s1: #3987e5;
-          --s2: #d95926;
-          --s3: #199e70;
-          --s4: #c98500;
-          --s5: #d55181;
+          --plane: #0c0c0b;
+          --surface: #161615;
+          --surface-2: #1d1d1b;
+          --ink: #f2f1ee;
+          --ink-2: #b8b6ad;
+          --muted: #84827a;
+          --grid: #272724;
+          --axis: #3a3a36;
+          --border: rgba(255, 255, 255, 0.09);
+          --border-strong: rgba(255, 255, 255, 0.17);
+          --wash: rgba(255, 255, 255, 0.05);
+          --wash-strong: rgba(255, 255, 255, 0.09);
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.28);
+          --s1: #4b96f0;
+          --s2: #eb6d3c;
+          --s3: #22b884;
+          --s4: #e0a01c;
+          --s5: #e56393;
+          --critical: #ef5350;
+          --s1-bg: rgba(75, 150, 240, 0.16);
+          --s3-bg: rgba(34, 184, 132, 0.16);
+          --s4-bg: rgba(224, 160, 28, 0.17);
+          --critical-bg: rgba(239, 83, 80, 0.15);
         }
       }
       * {
@@ -54,42 +71,55 @@
           -apple-system,
           "Segoe UI",
           sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
       main {
-        max-width: 1120px;
+        max-width: 1180px;
         margin: 0 auto;
-        padding: 20px 16px 48px;
+        padding: 18px 16px 56px;
       }
       header {
         display: flex;
         flex-wrap: wrap;
-        align-items: baseline;
-        gap: 4px 12px;
-        margin-bottom: 12px;
+        align-items: center;
+        gap: 10px 16px;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand-mark {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--s1);
+        flex: none;
       }
       h1 {
-        font-size: 20px;
+        font-size: 17px;
+        font-weight: 650;
+        letter-spacing: -0.015em;
         margin: 0;
       }
       h2 {
-        font-size: 14px;
+        font-size: 16px;
+        font-weight: 650;
         margin: 0 0 2px;
       }
       .note {
         color: var(--ink-2);
+        font-size: 13px;
         margin: 0;
-      }
-      .filters {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin: 12px 0 16px;
       }
       select,
       button,
       input {
         font: inherit;
+        font-size: 13px;
         color: inherit;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -97,181 +127,107 @@
         padding: 6px 10px;
         min-height: 34px;
       }
+      select:hover,
+      button:hover {
+        border-color: var(--border-strong);
+      }
       button {
         cursor: pointer;
+        font-weight: 500;
+        transition:
+          background 120ms ease,
+          border-color 120ms ease;
       }
       button:hover {
         background: var(--wash);
-      }
-      button[aria-pressed="true"] {
-        background: var(--ink);
-        color: var(--surface);
-        border-color: var(--ink);
       }
       :focus-visible {
         outline: 2px solid var(--s1);
         outline-offset: 2px;
       }
-      .ranges {
-        display: flex;
-        gap: 4px;
-      }
       .spacer {
         flex: 1;
+        min-width: 8px;
       }
       .card {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 14px 16px;
-      }
-      .tiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 12px;
-        margin-bottom: 12px;
-      }
-      .tile .label {
-        color: var(--ink-2);
-      }
-      .tile .value {
-        font-size: 26px;
-        font-weight: 600;
-        line-height: 1.2;
-      }
-      .tile .sub {
-        color: var(--muted);
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-        gap: 12px;
-        margin-bottom: 12px;
-      }
-      .legend {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px 14px;
-        margin: 6px 0 4px;
-        color: var(--ink-2);
-      }
-      .key {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 3px;
-        margin-right: 6px;
-      }
-      .key.line {
-        height: 2px;
-        width: 14px;
-        border-radius: 1px;
-        vertical-align: middle;
-      }
-      svg {
-        display: block;
-        width: 100%;
-        height: auto;
-        overflow: visible;
-      }
-      svg text {
-        fill: var(--muted);
-        font-size: 11px;
-        font-variant-numeric: tabular-nums;
+        padding: 16px 18px;
+        box-shadow: var(--shadow);
       }
       .scroll {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       table {
         width: 100%;
         border-collapse: collapse;
+        font-size: 13px;
         font-variant-numeric: tabular-nums;
       }
       th,
       td {
         text-align: left;
-        padding: 6px 10px 6px 0;
+        padding: 8px 10px 8px 0;
         border-bottom: 1px solid var(--grid);
         white-space: nowrap;
+        vertical-align: middle;
+      }
+      tr:last-child td {
+        border-bottom: 0;
       }
       th {
         color: var(--ink-2);
-        font-weight: 500;
-      }
-      td.num,
-      th.num {
-        text-align: right;
-      }
-      .meter {
-        display: flex;
-        width: 88px;
-        height: 8px;
-        gap: 2px;
-        background: var(--grid);
-        border-radius: 4px;
-        overflow: hidden;
-      }
-      .meter span {
-        height: 100%;
+        font-weight: 550;
+        font-size: 12px;
       }
       .empty {
         color: var(--ink-2);
-        padding: 28px 0;
+        padding: 36px 0;
         text-align: center;
-      }
-      #tooltip {
-        position: fixed;
-        pointer-events: none;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 8px 10px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
-        font-variant-numeric: tabular-nums;
-        z-index: 10;
-        min-width: 150px;
-      }
-      #tooltip .row {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      #tooltip .when {
-        color: var(--ink-2);
-        margin-bottom: 4px;
       }
       #signin {
         max-width: 420px;
-        margin: 12vh auto 0;
+        margin: 14vh auto 0;
+        padding: 22px 24px;
       }
       #signin form {
         display: flex;
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 14px;
       }
       #signin input {
         flex: 1;
       }
       .error {
         color: var(--critical);
+        font-size: 13px;
         margin: 8px 0 0;
       }
       .pages {
-        display: flex;
-        gap: 4px;
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        background: var(--wash);
+        border: 1px solid var(--border);
+        border-radius: 10px;
       }
       .pages a {
         color: var(--ink-2);
         text-decoration: none;
-        padding: 4px 10px;
-        border-radius: 8px;
+        padding: 4px 11px;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 500;
       }
       .pages a:hover {
-        background: var(--wash);
+        color: var(--ink);
       }
       .pages a[aria-current="page"] {
         color: var(--ink);
-        background: var(--wash);
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
         font-weight: 600;
       }
       [hidden] {
@@ -279,14 +235,19 @@
       }
       .layout {
         display: grid;
-        grid-template-columns: 250px minmax(0, 1fr);
-        gap: 12px;
+        grid-template-columns: 270px minmax(0, 1fr);
+        gap: 14px;
         align-items: start;
       }
-      @media (max-width: 760px) {
+      @media (max-width: 800px) {
         .layout {
           grid-template-columns: minmax(0, 1fr);
         }
+      }
+      .sidebar-search {
+        width: 100%;
+        margin-top: 10px;
+        min-height: 32px;
       }
       aside ul {
         list-style: none;
@@ -301,15 +262,30 @@
         border-color: transparent;
         background: transparent;
         min-height: 0;
-        padding: 8px 10px;
+        padding: 9px 10px;
+        border-radius: 9px;
       }
-      aside li button small {
+      aside li button:hover {
+        background: var(--wash);
+      }
+      aside li button .tenant-title {
         display: block;
+        font-weight: 550;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      aside li button .tenant-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        margin-top: 3px;
         color: var(--muted);
+        font-size: 12px;
       }
       aside li button[aria-current="true"] {
-        background: var(--wash);
-        border-color: var(--border);
+        background: var(--s1-bg);
+        border-color: var(--s1);
       }
       .wide {
         width: 100%;
@@ -319,21 +295,45 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 8px;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
       }
       .bar h2 {
         font-size: 18px;
         margin: 0;
       }
       .badge {
+        display: inline-flex;
+        align-items: center;
         font-size: 12px;
-        padding: 2px 8px;
+        font-weight: 550;
+        padding: 2px 9px;
         border-radius: 999px;
         border: 1px solid var(--border);
         color: var(--ink-2);
+        background: var(--surface-2);
+      }
+      .badge.saved {
+        background: var(--s3-bg);
+        border-color: transparent;
+        color: var(--s3);
       }
       .badge.dirty {
-        border-color: var(--s4);
+        background: var(--s4-bg);
+        border-color: transparent;
+        color: var(--s4);
+      }
+      .badge.eval {
+        background: var(--s1-bg);
+        border-color: transparent;
+        color: var(--s1);
+        font-size: 11px;
+        padding: 1px 7px;
+      }
+      .badge.clickable {
+        cursor: pointer;
+      }
+      .badge.clickable:hover {
+        border-color: var(--border-strong);
         color: var(--ink);
       }
       .tabs {
@@ -341,16 +341,24 @@
         flex-wrap: wrap;
         gap: 4px;
         border-bottom: 1px solid var(--grid);
-        margin-bottom: 14px;
-        padding-bottom: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
       }
       .tabs button {
         border-color: transparent;
         background: transparent;
+        color: var(--ink-2);
+        min-height: 32px;
+        padding: 5px 11px;
+      }
+      .tabs button:hover {
+        color: var(--ink);
+        background: var(--wash);
       }
       .tabs button[aria-selected="true"] {
-        background: var(--wash);
+        background: var(--wash-strong);
         border-color: var(--border);
+        color: var(--ink);
         font-weight: 600;
       }
       label.field {
@@ -359,14 +367,17 @@
         margin-bottom: 12px;
       }
       label.field > span {
-        font-weight: 500;
+        font-size: 13px;
+        font-weight: 550;
       }
       label.field small,
       .hint {
         color: var(--ink-2);
+        font-size: 12.5px;
       }
       textarea {
         font: inherit;
+        font-size: 13px;
         color: inherit;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -379,14 +390,15 @@
       textarea.code,
       .mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 13px;
+        font-size: 12.5px;
       }
       textarea.tall {
-        min-height: 420px;
+        min-height: 400px;
       }
       input[type="text"],
       input[type="number"],
-      input[type="password"] {
+      input[type="password"],
+      input[type="search"] {
         width: 100%;
       }
       td input,
@@ -397,28 +409,35 @@
       .cols {
         align-items: start;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
         gap: 0 12px;
       }
       .box {
         border: 1px solid var(--grid);
+        background: var(--surface-2);
         border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 12px;
+        padding: 14px 16px;
+        margin-bottom: 14px;
       }
       .box h3 {
         font-size: 14px;
-        margin: 0 0 6px;
+        font-weight: 600;
+        margin: 0 0 8px;
       }
       .notice {
-        border-radius: 8px;
-        padding: 8px 12px;
-        margin-bottom: 12px;
-        background: var(--wash);
+        border-radius: 9px;
+        padding: 9px 12px;
+        margin-bottom: 14px;
+        background: var(--s3-bg);
+        color: var(--ink);
+        border: 1px solid var(--s3);
+        font-size: 13px;
         white-space: pre-wrap;
       }
       .notice.bad {
-        border: 1px solid var(--critical);
+        background: var(--critical-bg);
+        border-color: var(--critical);
+        color: var(--critical);
       }
       .choices {
         display: grid;
@@ -427,42 +446,110 @@
       }
       .choices button {
         text-align: left;
-        padding: 12px;
+        padding: 14px;
         height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
       }
       .choices strong {
         display: block;
-        margin-bottom: 4px;
+        font-size: 14px;
+      }
+      .choices span {
+        color: var(--ink-2);
+        font-weight: 400;
+        line-height: 1.4;
+      }
+      .passages {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .passage {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        font-size: 12.5px;
       }
       button.danger {
         color: var(--critical);
+      }
+      button.danger:hover {
+        background: var(--critical-bg);
+        border-color: var(--critical);
       }
       button.primary {
         background: var(--ink);
         color: var(--surface);
         border-color: var(--ink);
       }
+      button.primary:hover {
+        opacity: 0.9;
+        background: var(--ink);
+      }
       button:disabled {
         opacity: 0.5;
         cursor: default;
+      }
+      dialog {
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        padding: 20px 22px;
+        max-width: 440px;
+        width: calc(100% - 32px);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+      }
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+      }
+      dialog h3 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+      dialog p {
+        margin: 0 0 12px;
+        color: var(--ink-2);
+        font-size: 13px;
+      }
+      dialog .bar {
+        margin: 14px 0 0;
+        justify-content: flex-end;
       }
     </style>
   </head>
   <body>
     <main>
       <section id="signin" class="card" hidden>
-        <h1>AI platform</h1>
+        <div class="brand" style="margin-bottom: 8px">
+          <span class="brand-mark"></span>
+          <h1>AI platform</h1>
+        </div>
         <p class="note">Enter the admin token to manage tenants. It stays in this tab only.</p>
         <form id="signin-form">
-          <input id="token" type="password" autocomplete="off" aria-label="Admin token" required />
-          <button type="submit">Open</button>
+          <input
+            id="token"
+            type="password"
+            autocomplete="off"
+            aria-label="Admin token"
+            placeholder="Admin token"
+            required
+          />
+          <button type="submit" class="primary">Open</button>
         </form>
         <p id="signin-error" class="error" role="alert" hidden></p>
       </section>
 
       <div id="app" hidden>
         <header>
-          <h1>AI platform</h1>
+          <div class="brand">
+            <span class="brand-mark"></span>
+            <h1>AI platform</h1>
+          </div>
           <nav class="pages" aria-label="Admin pages">
             <a href="/admin">Dashboard</a>
             <a href="/admin/tenants" aria-current="page">Tenants</a>
@@ -473,11 +560,32 @@
         <div class="layout">
           <aside class="card">
             <button id="new" type="button" class="wide primary">New tenant</button>
+            <input
+              id="tenant-filter"
+              type="search"
+              class="sidebar-search"
+              placeholder="Filter tenants…"
+              aria-label="Filter tenants"
+              hidden
+            />
             <ul id="list"></ul>
           </aside>
           <section id="editor" class="card" aria-live="polite"></section>
         </div>
       </div>
+
+      <dialog id="delete-dialog">
+        <h3>Delete tenant</h3>
+        <p id="delete-copy"></p>
+        <label class="field">
+          <span id="delete-label"></span>
+          <input id="delete-confirm" type="text" autocomplete="off" />
+        </label>
+        <div class="bar">
+          <button id="delete-cancel" type="button">Cancel</button>
+          <button id="delete-go" type="button" class="danger" disabled>Delete tenant</button>
+        </div>
+      </dialog>
     </main>
 
     <script>
@@ -505,6 +613,7 @@
       };
       const state = {
         summaries: [],
+        filter: "",
         doc: null,
         isNew: false,
         dirty: false,
@@ -513,6 +622,8 @@
         notice: null,
         editing: null,
         documents: null,
+        inspected: null,
+        docDraft: { id: "", title: "", plans: "", text: "" },
       };
       const $ = (id) => document.getElementById(id);
 
@@ -526,6 +637,15 @@
         node.append(...children.filter((child) => child !== null && child !== undefined));
         return node;
       };
+
+      const formatDateTime = (time) =>
+        new Date(time).toLocaleString("en", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
 
       const token = () => sessionStorage.getItem("admin-token") ?? "";
       const api = async (path, options = {}) => {
@@ -627,7 +747,12 @@
         return el(
           "div",
           { class: "scroll" },
-          el("table", {}, el("tr", {}, ...heads.map((head) => el("th", {}, head))), ...body),
+          el(
+            "table",
+            {},
+            el("thead", {}, el("tr", {}, ...heads.map((head) => el("th", {}, head)))),
+            el("tbody", {}, ...body),
+          ),
         );
       };
 
@@ -675,7 +800,7 @@
           ),
           el(
             "p",
-            { class: "hint" },
+            { class: "hint", style: "margin-top:0" },
             `Callers: ${AUTHN[doc.authn.kind] ?? doc.authn.kind}. Agent: ${agent.kind === "chat" ? `chat, ${agent.state}` : "gated answer"}. Change either in the Document tab.`,
           ),
           field(
@@ -684,7 +809,7 @@
               (doc.authn.allowedOrigins ?? []).join("\n"),
               (value) => (doc.authn.allowedOrigins = lines(value)),
             ),
-            "One per line. A browser on any other origin is refused.",
+            "One per line, origin only (no path or trailing slash). A browser on any other origin is refused.",
           ),
           el(
             "div",
@@ -744,7 +869,7 @@
             ),
             el(
               "div",
-              { class: "bar" },
+              { class: "bar", style: "margin-bottom:0" },
               secret,
               button(evals ? "Replace secret" : "Turn on", setSecret),
               evals
@@ -859,7 +984,7 @@
             ),
             el(
               "div",
-              { class: "bar", style: "margin-top:10px" },
+              { class: "bar", style: "margin-top:10px;margin-bottom:0" },
               added,
               button("Add plan", addPlan),
             ),
@@ -901,7 +1026,7 @@
         };
         return el(
           "div",
-          { class: "box" },
+          { class: "box", style: "margin-top:12px;margin-bottom:0;background:var(--surface)" },
           el("h3", {}, toolIndex === -1 ? "New tool" : `Edit ${draft.name}`),
           el(
             "div",
@@ -948,7 +1073,7 @@
           field("Input schema (JSON Schema)", schema),
           el(
             "div",
-            { class: "bar" },
+            { class: "bar", style: "margin-bottom:0" },
             button("Done", done, { class: "primary" }),
             button("Cancel", () => {
               state.editing = null;
@@ -956,6 +1081,31 @@
             }),
           ),
         );
+      };
+
+      const hashBadge = (hash) => {
+        if (!hash || state.dirty) {
+          return el("span", { class: "badge mono" }, "hash set on save");
+        }
+        const label = `hash ${hash.slice(0, 12)}…`;
+        const node = el(
+          "button",
+          {
+            type: "button",
+            class: "badge mono clickable",
+            title: `Click to copy full hash: ${hash}`,
+            style: "min-height:0",
+          },
+          label,
+        );
+        node.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(hash).catch(() => undefined);
+          node.textContent = "Copied hash";
+          setTimeout(() => {
+            node.textContent = label;
+          }, 1200);
+        });
+        return node;
       };
 
       const contractBox = (agent, contract, index) => {
@@ -1004,11 +1154,7 @@
             "div",
             { class: "bar" },
             el("h3", { style: "margin:0" }, `Contract version ${contract.version}`),
-            el(
-              "span",
-              { class: "badge mono", title: hash ?? "" },
-              hash && !state.dirty ? `hash ${hash.slice(0, 12)}…` : "hash set on save",
-            ),
+            hashBadge(hash),
             el("span", { class: "spacer" }),
             agent.contracts.length > 1
               ? button("Remove version", () => {
@@ -1026,7 +1172,7 @@
           table(["Tool", "Effect", "Runs", "Address", ""], rows, "No tools in this version."),
           el(
             "div",
-            { class: "bar", style: "margin-top:10px" },
+            { class: "bar", style: "margin-top:10px;margin-bottom:0" },
             button("Add tool", () => {
               state.editing = { index, toolIndex: -1, draft: blank };
               render();
@@ -1100,16 +1246,30 @@
           loadDocuments();
           return [el("p", { class: "hint" }, "Loading documents…")];
         }
-        const id = el("input", { type: "text", placeholder: "document-id" });
-        const title = el("input", { type: "text", placeholder: "Title" });
+        const id = el("input", {
+          type: "text",
+          placeholder: "document-id",
+          value: state.docDraft.id,
+          oninput: (event) => (state.docDraft.id = event.target.value),
+        });
+        const title = el("input", {
+          type: "text",
+          placeholder: "Title",
+          value: state.docDraft.title,
+          oninput: (event) => (state.docDraft.title = event.target.value),
+        });
         const visible = el("input", {
           type: "text",
           placeholder: "Plans that may see it, comma separated (blank: everyone)",
+          value: state.docDraft.plans,
+          oninput: (event) => (state.docDraft.plans = event.target.value),
         });
         const body = el("textarea", {
           placeholder: "Paste the text. Markdown headings are kept with their sections.",
           style: "min-height:140px",
+          oninput: (event) => (state.docDraft.text = event.target.value),
         });
+        body.value = state.docDraft.text;
         const add = async () => {
           const plansList = visible.value
             .split(",")
@@ -1125,6 +1285,8 @@
               }),
             });
             state.documents = null;
+            state.inspected = null;
+            state.docDraft = { id: "", title: "", plans: "", text: "" };
             say(
               result.unchanged
                 ? "That document is unchanged."
@@ -1134,9 +1296,25 @@
             say(error.message, true);
           }
         };
+        const inspect = async (documentId) => {
+          try {
+            const loaded = await api(`/tenants/${doc.id}/documents/${documentId}`);
+            state.inspected = loaded;
+            state.docDraft = {
+              id: loaded.id,
+              title: loaded.title,
+              plans: (loaded.plans ?? []).join(", "),
+              text: loaded.texts.join("\n\n"),
+            };
+            render();
+          } catch (error) {
+            say(error.message, true);
+          }
+        };
         const remove = async (documentId) => {
           if (!confirm(`Delete the document ${documentId}?`)) return;
           await api(`/tenants/${doc.id}/documents/${documentId}`, { method: "DELETE" });
+          if (state.inspected?.id === documentId) state.inspected = null;
           state.documents = null;
           render();
         };
@@ -1152,17 +1330,51 @@
               "The agent searches these only when a contract has a tool that runs as knowledge search.",
             ),
             table(
-              ["Id", "Title", "Passages", "Embedded", "Updated", ""],
+              ["Id", "Title", "Visible to", "Passages", "Embedded", "Updated", ""],
               state.documents.map((entry) => [
                 el("span", { class: "mono" }, entry.id),
                 entry.title,
+                entry.plans === null || entry.plans === undefined
+                  ? "Everyone"
+                  : el("span", { class: "mono" }, entry.plans.join(", ")),
                 String(entry.chunks),
                 entry.embedded ? "Yes" : "No",
-                new Date(entry.updatedAt).toLocaleString("en"),
-                button("Delete", () => remove(entry.id), { class: "danger" }),
+                formatDateTime(entry.updatedAt),
+                el(
+                  "span",
+                  {},
+                  button("Inspect", () => inspect(entry.id)),
+                  " ",
+                  button("Delete", () => remove(entry.id), { class: "danger" }),
+                ),
               ]),
               "No documents yet.",
             ),
+            state.inspected === null
+              ? null
+              : el(
+                  "div",
+                  { style: "margin-top:12px" },
+                  el(
+                    "div",
+                    { class: "bar", style: "margin-bottom:6px" },
+                    el(
+                      "strong",
+                      {},
+                      `Passages in ${state.inspected.id} (${state.inspected.texts.length})`,
+                    ),
+                    el("span", { class: "spacer" }),
+                    button("Close", () => {
+                      state.inspected = null;
+                      render();
+                    }),
+                  ),
+                  el(
+                    "div",
+                    { class: "passages" },
+                    ...state.inspected.texts.map((chunk) => el("div", { class: "passage" }, chunk)),
+                  ),
+                ),
           ),
           el(
             "div",
@@ -1219,8 +1431,12 @@
         ];
       };
 
-      const pairs = (target, heads, placeholder) => {
-        const key = el("input", { type: "text", placeholder, list: "codes" });
+      const pairs = (target, heads, placeholder, listId) => {
+        const key = el("input", {
+          type: "text",
+          placeholder,
+          ...(listId ? { list: listId } : {}),
+        });
         const rows = Object.entries(target).map(([name, value]) => [
           el("span", { class: "mono" }, name),
           text(value, (next) => (target[name] = next), { "aria-label": `Text for ${name}` }),
@@ -1240,7 +1456,12 @@
           "div",
           {},
           table([...heads, ""], rows, "None. The built-in English text is used."),
-          el("div", { class: "bar", style: "margin-top:10px" }, key, button("Add", add)),
+          el(
+            "div",
+            { class: "bar", style: "margin-top:10px;margin-bottom:0" },
+            key,
+            button("Add", add),
+          ),
         );
       };
 
@@ -1303,7 +1524,7 @@
               { class: "hint" },
               "Keyed by error code. Clients also get the code and can show their own text.",
             ),
-            pairs(doc.messages, ["Error code", "Message"], "error code"),
+            pairs(doc.messages, ["Error code", "Message"], "error code", "codes"),
             el("datalist", { id: "codes" }, ...CODES.map((code) => el("option", { value: code }))),
           ),
         ];
@@ -1343,6 +1564,7 @@
       const PANELS = { overview, plans, tools, knowledge, wording, document: documentTab };
 
       const save = async () => {
+        if (state.doc === null) return;
         try {
           const result = await api(`/tenants/${state.doc.id}`, {
             method: "PUT",
@@ -1369,15 +1591,28 @@
           say(error.message, true);
         }
       };
-      const removeTenant = async () => {
-        const typed = prompt(
-          `This removes the tenant and its clients stop working at once. Its stored sessions, documents and counters are not erased.\n\nType ${state.doc.id} to delete it.`,
-        );
-        if (typed !== state.doc.id) return;
-        await api(`/tenants/${state.doc.id}`, { method: "DELETE" });
-        Object.assign(state, { doc: null, dirty: false, notice: null });
-        await loadList();
-        render();
+      const openDeleteDialog = () => {
+        const dialog = $("delete-dialog");
+        const targetId = state.doc.id;
+        $("delete-copy").textContent =
+          "This removes the tenant and erases its knowledge documents immediately. Stored sessions and counters remain in their stores.";
+        $("delete-label").textContent = `Type ${targetId} to confirm`;
+        const input = $("delete-confirm");
+        const go = $("delete-go");
+        input.value = "";
+        go.disabled = true;
+        input.oninput = () => {
+          go.disabled = input.value !== targetId;
+        };
+        go.onclick = async () => {
+          dialog.close();
+          await api(`/tenants/${targetId}`, { method: "DELETE" });
+          Object.assign(state, { doc: null, dirty: false, notice: null, inspected: null });
+          await loadList();
+          render();
+        };
+        dialog.showModal();
+        input.focus();
       };
 
       const chooser = (templates) =>
@@ -1387,20 +1622,17 @@
           el("h2", {}, "Start a new tenant from"),
           el(
             "p",
-            { class: "note", style: "margin-bottom:12px" },
+            { class: "note", style: "margin-bottom:14px" },
             "Each starts as a working document with placeholder values. Change them, validate, then save.",
           ),
           el(
             "div",
             { class: "choices" },
-            ...templates
-              .map((template) =>
-                button("", () => open(structuredClone(template.tenant), true, []), {}),
-              )
-              .map((node, index) => {
-                node.append(el("strong", {}, templates[index].label), templates[index].description);
-                return node;
-              }),
+            ...templates.map((template) => {
+              const card = button("", () => open(structuredClone(template.tenant), true, []), {});
+              card.append(el("strong", {}, template.label), el("span", {}, template.description));
+              return card;
+            }),
           ),
         );
 
@@ -1429,7 +1661,10 @@
               );
         const badge = el(
           "span",
-          { id: "badge", class: state.dirty ? "badge dirty" : "badge" },
+          {
+            id: "badge",
+            class: state.dirty ? "badge dirty" : "badge saved",
+          },
           state.isNew ? "New, not saved" : state.dirty ? "Unsaved changes" : "Saved",
         );
         editor.replaceChildren(
@@ -1441,8 +1676,8 @@
               badge,
               el("span", { class: "spacer" }),
               button("Validate", validate),
-              button("Save", save, { class: "primary" }),
-              state.isNew ? null : button("Delete", removeTenant, { class: "danger" }),
+              button("Save", save, { class: "primary", title: "Save (⌘S / Ctrl+S)" }),
+              state.isNew ? null : button("Delete", openDeleteDialog, { class: "danger" }),
             ),
             notice,
             el(
@@ -1467,12 +1702,31 @@
       };
 
       const renderList = () => {
+        const search = $("tenant-filter");
+        search.hidden = state.summaries.length < 4;
+        const query = state.filter.trim().toLowerCase();
+        const visible = state.summaries.filter(
+          (summary) =>
+            query === "" ||
+            summary.name.toLowerCase().includes(query) ||
+            summary.id.toLowerCase().includes(query),
+        );
         $("list").replaceChildren(
-          ...state.summaries.map((summary) => {
+          ...visible.map((summary) => {
             const item = button("", () => choose(summary.id), {
               "aria-current": String(!state.isNew && state.doc?.id === summary.id),
             });
-            item.append(summary.name, el("small", {}, `${summary.id} · ${summary.agent}`));
+            item.append(
+              el("span", { class: "tenant-title" }, summary.name),
+              el(
+                "span",
+                { class: "tenant-meta" },
+                el("span", { class: "mono" }, summary.id),
+                "·",
+                summary.agent,
+                summary.evals ? el("span", { class: "badge eval" }, "evals") : null,
+              ),
+            );
             return el("li", {}, item);
           }),
         );
@@ -1489,6 +1743,8 @@
           notice: null,
           editing: null,
           documents: null,
+          inspected: null,
+          docDraft: { id: "", title: "", plans: "", text: "" },
         });
         render();
       };
@@ -1518,10 +1774,15 @@
         $("token").focus();
       };
 
+      $("delete-cancel").addEventListener("click", () => $("delete-dialog").close());
+      $("tenant-filter").addEventListener("input", (event) => {
+        state.filter = event.target.value;
+        renderList();
+      });
       $("new").addEventListener("click", async () => {
         if (!leaving()) return;
         const templates = await api("/templates");
-        Object.assign(state, { doc: null, dirty: false, notice: null });
+        Object.assign(state, { doc: null, dirty: false, notice: null, inspected: null });
         renderList();
         $("editor").replaceChildren(chooser(templates));
       });
@@ -1534,6 +1795,12 @@
         sessionStorage.setItem("admin-token", $("token").value);
         $("token").value = "";
         start();
+      });
+      window.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && state.doc) {
+          event.preventDefault();
+          save();
+        }
       });
       window.addEventListener("beforeunload", (event) => {
         if (state.dirty) event.preventDefault();

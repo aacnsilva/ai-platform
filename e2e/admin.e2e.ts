@@ -103,7 +103,9 @@ describe("tenant administration", () => {
     const page = await fetch(`${runtimeUrl()}/admin/tenants`);
     expect(page.status).toBe(200);
     expect(page.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
-    expect(await page.text()).toContain("Enter the admin token to manage tenants");
+    const body = await page.text();
+    expect(body).toContain("Enter the admin token to manage tenants");
+    expect(body).toContain("delete-dialog");
     for (const path of ["/tenants", "/templates", "/tenants/demo"]) {
       expect((await fetch(`${runtimeUrl()}/admin/api${path}`)).status).toBe(401);
     }

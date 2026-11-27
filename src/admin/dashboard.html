@@ -3,43 +3,64 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AI platform</title>
+    <title>AI platform — Dashboard</title>
     <style>
       :root {
         color-scheme: light;
-        --plane: #f9f9f7;
-        --surface: #fcfcfb;
-        --ink: #0b0b0b;
+        --plane: #f6f6f3;
+        --surface: #ffffff;
+        --surface-2: #fafaf8;
+        --ink: #111110;
         --ink-2: #52514e;
-        --muted: #898781;
-        --grid: #e1e0d9;
-        --axis: #c3c2b7;
-        --border: rgba(11, 11, 11, 0.1);
-        --wash: rgba(11, 11, 11, 0.05);
+        --muted: #82807a;
+        --grid: #e8e7e1;
+        --axis: #c6c4ba;
+        --border: rgba(17, 17, 16, 0.1);
+        --border-strong: rgba(17, 17, 16, 0.18);
+        --wash: rgba(17, 17, 16, 0.045);
+        --wash-strong: rgba(17, 17, 16, 0.08);
+        --shadow: 0 1px 2px rgba(17, 17, 16, 0.04), 0 6px 20px rgba(17, 17, 16, 0.04);
         --s1: #2a78d6;
         --s2: #eb6834;
         --s3: #1baf7a;
-        --s4: #eda100;
-        --s5: #e87ba4;
+        --s4: #d69000;
+        --s5: #d6457b;
         --critical: #d03b3b;
+        --s1-bg: rgba(42, 120, 214, 0.12);
+        --s2-bg: rgba(235, 104, 52, 0.12);
+        --s3-bg: rgba(27, 175, 122, 0.12);
+        --s4-bg: rgba(214, 144, 0, 0.14);
+        --s5-bg: rgba(214, 69, 123, 0.12);
+        --critical-bg: rgba(208, 59, 59, 0.12);
       }
       @media (prefers-color-scheme: dark) {
         :root {
           color-scheme: dark;
-          --plane: #0d0d0d;
-          --surface: #1a1a19;
-          --ink: #f0efec;
-          --ink-2: #c3c2b7;
-          --muted: #898781;
-          --grid: #2c2c2a;
-          --axis: #383835;
-          --border: rgba(255, 255, 255, 0.1);
-          --wash: rgba(255, 255, 255, 0.06);
-          --s1: #3987e5;
-          --s2: #d95926;
-          --s3: #199e70;
-          --s4: #c98500;
-          --s5: #d55181;
+          --plane: #0c0c0b;
+          --surface: #161615;
+          --surface-2: #1d1d1b;
+          --ink: #f2f1ee;
+          --ink-2: #b8b6ad;
+          --muted: #84827a;
+          --grid: #272724;
+          --axis: #3a3a36;
+          --border: rgba(255, 255, 255, 0.09);
+          --border-strong: rgba(255, 255, 255, 0.17);
+          --wash: rgba(255, 255, 255, 0.05);
+          --wash-strong: rgba(255, 255, 255, 0.09);
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.28);
+          --s1: #4b96f0;
+          --s2: #eb6d3c;
+          --s3: #22b884;
+          --s4: #e0a01c;
+          --s5: #e56393;
+          --critical: #ef5350;
+          --s1-bg: rgba(75, 150, 240, 0.16);
+          --s2-bg: rgba(235, 109, 60, 0.16);
+          --s3-bg: rgba(34, 184, 132, 0.16);
+          --s4-bg: rgba(224, 160, 28, 0.17);
+          --s5-bg: rgba(229, 99, 147, 0.16);
+          --critical-bg: rgba(239, 83, 80, 0.16);
         }
       }
       * {
@@ -54,42 +75,114 @@
           -apple-system,
           "Segoe UI",
           sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
       main {
-        max-width: 1120px;
+        max-width: 1180px;
         margin: 0 auto;
-        padding: 20px 16px 48px;
+        padding: 18px 16px 56px;
       }
       header {
         display: flex;
         flex-wrap: wrap;
-        align-items: baseline;
-        gap: 4px 12px;
-        margin-bottom: 12px;
+        align-items: center;
+        gap: 10px 16px;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand-mark {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--s1);
+        flex: none;
       }
       h1 {
-        font-size: 20px;
+        font-size: 17px;
+        font-weight: 650;
+        letter-spacing: -0.015em;
         margin: 0;
       }
       h2 {
         font-size: 14px;
+        font-weight: 600;
         margin: 0 0 2px;
       }
       .note {
         color: var(--ink-2);
+        font-size: 13px;
         margin: 0;
       }
-      .filters {
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12.5px;
+      }
+      .pages {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        background: var(--wash);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .pages a {
+        color: var(--ink-2);
+        text-decoration: none;
+        padding: 4px 11px;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .pages a:hover {
+        color: var(--ink);
+      }
+      .pages a[aria-current="page"] {
+        color: var(--ink);
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        font-weight: 600;
+      }
+      .status-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        font-variant-numeric: tabular-nums;
+      }
+      .live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--s3);
+        flex: none;
+      }
+      .live-dot.paused {
+        background: var(--muted);
+      }
+      .toolbar {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 8px;
-        margin: 12px 0 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin-bottom: 14px;
+        box-shadow: var(--shadow);
       }
       select,
       button,
       input {
         font: inherit;
+        font-size: 13px;
         color: inherit;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -97,75 +190,158 @@
         padding: 6px 10px;
         min-height: 34px;
       }
+      select:hover,
+      button:hover {
+        border-color: var(--border-strong);
+      }
       button {
         cursor: pointer;
+        font-weight: 500;
+        transition:
+          background 120ms ease,
+          border-color 120ms ease;
       }
       button:hover {
         background: var(--wash);
       }
-      button[aria-pressed="true"] {
+      button.primary {
         background: var(--ink);
         color: var(--surface);
         border-color: var(--ink);
+      }
+      button.primary:hover {
+        opacity: 0.9;
+        background: var(--ink);
       }
       :focus-visible {
         outline: 2px solid var(--s1);
         outline-offset: 2px;
       }
       .ranges {
-        display: flex;
-        gap: 4px;
+        display: inline-flex;
+        gap: 2px;
+        padding: 2px;
+        background: var(--wash);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+      }
+      .ranges button {
+        border: 0;
+        background: transparent;
+        min-height: 28px;
+        padding: 3px 9px;
+        border-radius: 6px;
+        color: var(--ink-2);
+      }
+      .ranges button:hover {
+        color: var(--ink);
+        background: transparent;
+      }
+      .ranges button[aria-pressed="true"] {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+      }
+      .auto-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--ink-2);
+        padding: 0 4px;
+        cursor: pointer;
+      }
+      .auto-toggle input {
+        min-height: 0;
+        margin: 0;
+        accent-color: var(--s1);
       }
       .spacer {
         flex: 1;
+        min-width: 8px;
       }
       .card {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 14px 16px;
+        padding: 15px 16px;
+        box-shadow: var(--shadow);
+      }
+      .card-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 6px 12px;
+        margin-bottom: 8px;
       }
       .tiles {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
         gap: 12px;
-        margin-bottom: 12px;
+        margin-bottom: 14px;
+      }
+      .tile {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 14px 16px;
       }
       .tile .label {
         color: var(--ink-2);
+        font-size: 12.5px;
+        font-weight: 500;
       }
       .tile .value {
-        font-size: 26px;
-        font-weight: 600;
-        line-height: 1.2;
+        font-size: 25px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        font-variant-numeric: tabular-nums;
       }
       .tile .sub {
         color: var(--muted);
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile.alert {
+        border-color: var(--critical);
+      }
+      .tile.alert .sub {
+        color: var(--critical);
+        font-weight: 500;
       }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-        gap: 12px;
-        margin-bottom: 12px;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      @media (max-width: 420px) {
+        .grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
       .legend {
         display: flex;
         flex-wrap: wrap;
         gap: 4px 14px;
-        margin: 6px 0 4px;
+        margin: 4px 0 8px;
+        font-size: 12.5px;
         color: var(--ink-2);
       }
       .key {
         display: inline-block;
-        width: 10px;
-        height: 10px;
+        width: 9px;
+        height: 9px;
         border-radius: 3px;
         margin-right: 6px;
       }
       .key.line {
-        height: 2px;
+        height: 2.5px;
         width: 14px;
-        border-radius: 1px;
+        border-radius: 2px;
         vertical-align: middle;
       }
       svg {
@@ -181,30 +357,134 @@
       }
       .scroll {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       table {
         width: 100%;
         border-collapse: collapse;
+        font-size: 13px;
         font-variant-numeric: tabular-nums;
       }
       th,
       td {
         text-align: left;
-        padding: 6px 10px 6px 0;
+        padding: 8px 10px 8px 0;
         border-bottom: 1px solid var(--grid);
         white-space: nowrap;
+        vertical-align: middle;
+      }
+      tr:last-child td {
+        border-bottom: 0;
       }
       th {
         color: var(--ink-2);
-        font-weight: 500;
+        font-weight: 550;
+        font-size: 12px;
+      }
+      tbody tr:hover td {
+        background: var(--wash);
+      }
+      tr.clickable {
+        cursor: pointer;
+      }
+      tr.active td {
+        background: var(--s1-bg);
       }
       td.num,
       th.num {
         text-align: right;
       }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 550;
+        line-height: 1.35;
+      }
+      .pill.answered {
+        background: var(--s1-bg);
+        color: var(--s1);
+      }
+      .pill.guarded {
+        background: var(--s2-bg);
+        color: var(--s2);
+      }
+      .pill.limited {
+        background: var(--s3-bg);
+        color: var(--s3);
+      }
+      .pill.rejected {
+        background: var(--s4-bg);
+        color: var(--s4);
+      }
+      .pill.failed {
+        background: var(--s5-bg);
+        color: var(--s5);
+      }
+      .pill.eval {
+        background: var(--wash-strong);
+        color: var(--ink-2);
+      }
+      .pill.paused {
+        background: var(--critical-bg);
+        color: var(--critical);
+      }
+      .pill.ok {
+        background: var(--s3-bg);
+        color: var(--s3);
+      }
+      .copy-id {
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 2px 6px;
+        min-height: 0;
+        border-radius: 6px;
+        color: var(--ink-2);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+      .copy-id:hover {
+        border-color: var(--border);
+        background: var(--surface-2);
+        color: var(--ink);
+      }
+      .log-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0;
+      }
+      .log-controls input {
+        min-width: 180px;
+        max-width: 260px;
+        flex: 1;
+        min-height: 30px;
+        padding: 4px 10px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .chips button {
+        min-height: 28px;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .chips button[aria-pressed="true"] {
+        background: var(--ink);
+        color: var(--surface);
+        border-color: var(--ink);
+      }
       .meter {
         display: flex;
-        width: 88px;
+        width: 92px;
         height: 8px;
         gap: 2px;
         background: var(--grid);
@@ -223,56 +503,54 @@
         position: fixed;
         pointer-events: none;
         background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 8px 10px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 9px 11px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        font-size: 12.5px;
         font-variant-numeric: tabular-nums;
-        z-index: 10;
-        min-width: 150px;
+        z-index: 20;
+        min-width: 170px;
       }
       #tooltip .row {
         display: flex;
         justify-content: space-between;
         gap: 16px;
+        padding: 1px 0;
       }
       #tooltip .when {
         color: var(--ink-2);
-        margin-bottom: 4px;
+        font-weight: 550;
+        margin-bottom: 5px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--grid);
       }
       #signin {
         max-width: 420px;
-        margin: 12vh auto 0;
+        margin: 14vh auto 0;
+        padding: 22px 24px;
       }
       #signin form {
         display: flex;
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 14px;
       }
       #signin input {
         flex: 1;
       }
       .error {
         color: var(--critical);
+        font-size: 13px;
         margin: 8px 0 0;
       }
-      .pages {
-        display: flex;
-        gap: 4px;
-      }
-      .pages a {
-        color: var(--ink-2);
-        text-decoration: none;
-        padding: 4px 10px;
-        border-radius: 8px;
-      }
-      .pages a:hover {
-        background: var(--wash);
-      }
-      .pages a[aria-current="page"] {
-        color: var(--ink);
-        background: var(--wash);
-        font-weight: 600;
+      .banner-error {
+        background: var(--critical-bg);
+        border: 1px solid var(--critical);
+        color: var(--critical);
+        border-radius: 10px;
+        padding: 9px 12px;
+        margin: 0 0 14px;
+        font-size: 13px;
       }
       [hidden] {
         display: none !important;
@@ -282,25 +560,44 @@
   <body>
     <main>
       <section id="signin" class="card" hidden>
-        <h1>AI platform</h1>
+        <div class="brand" style="margin-bottom: 8px">
+          <span class="brand-mark"></span>
+          <h1>AI platform</h1>
+        </div>
         <p class="note">Enter the admin token to see the dashboard. It stays in this tab only.</p>
         <form id="signin-form">
-          <input id="token" type="password" autocomplete="off" aria-label="Admin token" required />
-          <button type="submit">Open</button>
+          <input
+            id="token"
+            type="password"
+            autocomplete="off"
+            aria-label="Admin token"
+            placeholder="Admin token"
+            required
+          />
+          <button type="submit" class="primary">Open</button>
         </form>
         <p id="signin-error" class="error" role="alert" hidden></p>
       </section>
 
       <div id="app" hidden>
         <header>
-          <h1>AI platform</h1>
+          <div class="brand">
+            <span class="brand-mark"></span>
+            <h1>AI platform</h1>
+          </div>
           <nav class="pages" aria-label="Admin pages">
             <a href="/admin" aria-current="page">Dashboard</a>
             <a href="/admin/tenants">Tenants</a>
           </nav>
-          <p class="note" id="updated" aria-live="polite"></p>
+          <span class="spacer"></span>
+          <span class="status-meta">
+            <span id="live-dot" class="live-dot" aria-hidden="true"></span>
+            <span id="updated" aria-live="polite"></span>
+          </span>
+          <button id="signout" type="button">Sign out</button>
         </header>
-        <div class="filters">
+
+        <div class="toolbar">
           <select id="tenant" aria-label="Tenant"></select>
           <select id="traffic" aria-label="Traffic">
             <option value="">All traffic</option>
@@ -309,25 +606,29 @@
           </select>
           <div class="ranges" id="ranges" role="group" aria-label="Time range"></div>
           <span class="spacer"></span>
-          <label
-            ><input type="checkbox" id="auto" checked style="min-height: 0" /> Refresh every 10
-            s</label
-          >
+          <label class="auto-toggle">
+            <input type="checkbox" id="auto" checked />
+            Auto-refresh (10 s)
+          </label>
           <button id="refresh" type="button">Refresh</button>
-          <button id="signout" type="button">Sign out</button>
         </div>
-        <p id="load-error" class="error" role="alert" hidden></p>
+
+        <p id="load-error" class="banner-error" role="alert" hidden></p>
 
         <div class="tiles" id="tiles"></div>
 
         <div class="grid">
           <section class="card">
-            <h2>Requests by outcome</h2>
+            <div class="card-head">
+              <h2>Requests by outcome</h2>
+            </div>
             <div class="legend" id="outcome-legend"></div>
             <div id="outcome-chart"></div>
           </section>
           <section class="card">
-            <h2>Response time</h2>
+            <div class="card-head">
+              <h2>Response time</h2>
+            </div>
             <div class="legend" id="latency-legend"></div>
             <div id="latency-chart"></div>
           </section>
@@ -335,22 +636,45 @@
 
         <div class="grid">
           <section class="card">
-            <h2>Monthly pools</h2>
-            <p class="note">
+            <div class="card-head">
+              <h2>Monthly pools</h2>
+              <span class="note">Click a tenant to filter</span>
+            </div>
+            <p class="note" style="margin-bottom: 8px">
               Spent and reserved against each tenant's pool for the current UTC month.
             </p>
             <div class="scroll"><table id="pools"></table></div>
           </section>
           <section class="card">
-            <h2>Outcomes</h2>
-            <p class="note">Every way a request ended in this window.</p>
+            <div class="card-head">
+              <h2>Outcomes</h2>
+            </div>
+            <p class="note" style="margin-bottom: 8px">Every way a request ended in this window.</p>
             <div class="scroll"><table id="outcomes"></table></div>
           </section>
         </div>
 
         <section class="card">
-          <h2>Recent requests</h2>
+          <div class="card-head">
+            <h2>Recent requests</h2>
+            <span class="note" id="recent-count"></span>
+          </div>
           <p class="note">Codes and measurements only. Questions and answers are never stored.</p>
+          <div class="log-controls">
+            <div
+              class="chips"
+              id="log-classes"
+              role="group"
+              aria-label="Filter recent requests"
+            ></div>
+            <span class="spacer"></span>
+            <input
+              id="log-search"
+              type="search"
+              placeholder="Filter by tenant, outcome, model, request…"
+              aria-label="Filter recent requests"
+            />
+          </div>
           <div class="scroll"><table id="recent"></table></div>
         </section>
       </div>
@@ -378,8 +702,17 @@
         ["latencyP95", "95th percentile", "var(--s2)"],
         ["ttftP50", "First text, median", "var(--s3)"],
       ];
-      const BOX = { width: 720, height: 230, left: 46, right: 10, top: 10, bottom: 24 };
-      const state = { hours: 24, tenant: "", traffic: "", timer: 0 };
+      const BOX = { width: 720, height: 230, left: 48, right: 12, top: 10, bottom: 24 };
+      const state = {
+        hours: 24,
+        tenant: "",
+        traffic: "",
+        logClass: "",
+        logQuery: "",
+        tenantSignature: "",
+        lastSummary: null,
+        timer: 0,
+      };
       const $ = (id) => document.getElementById(id);
       const tooltip = $("tooltip");
 
@@ -407,8 +740,21 @@
         value === null ? "–" : `${(value * 100).toFixed(value >= 0.995 || value === 0 ? 0 : 1)}%`;
       const euros = (nano) => {
         const value = nano / 1e9;
-        const digits = value === 0 || value >= 100 ? 2 : value >= 1 ? 2 : value >= 0.01 ? 4 : 6;
+        const digits = value === 0 || value >= 1 ? 2 : value >= 0.01 ? 4 : 6;
         return `€${value.toFixed(digits)}`;
+      };
+      const formatDateTime = (time, includeSeconds = true) => {
+        const date = new Date(time);
+        const sameYear = date.getFullYear() === new Date().getFullYear();
+        return date.toLocaleString("en", {
+          ...(sameYear ? {} : { year: "numeric" }),
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          ...(includeSeconds ? { second: "2-digit" } : {}),
+          hour12: false,
+        });
       };
       const clock = (time, bucketMs) =>
         new Date(time).toLocaleString(
@@ -416,9 +762,24 @@
           bucketMs >= 86400000
             ? { month: "short", day: "numeric" }
             : bucketMs >= 3600000
-              ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
-              : { hour: "2-digit", minute: "2-digit" },
+              ? {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                }
+              : { hour: "2-digit", minute: "2-digit", hour12: false },
         );
+
+      const classifyEvent = (event) => {
+        if (event.status === 429) return "limited";
+        if (event.status >= 500) return "failed";
+        if (event.status >= 400) return "rejected";
+        return event.outcome === "answered" || event.outcome === "tool_round"
+          ? "answered"
+          : "guarded";
+      };
 
       const niceMax = (value) => {
         if (value <= 4) return 4;
@@ -427,7 +788,15 @@
         return (lead <= 1 ? 1 : lead <= 2 ? 2 : lead <= 4 ? 4 : lead <= 5 ? 5 : 10) * power;
       };
 
-      const showTooltip = (event, when, rows) => {
+      const positionTooltip = (x, y) => {
+        const { width, height } = tooltip.getBoundingClientRect();
+        const left = Math.min(x + 14, window.innerWidth - width - 8);
+        const top = Math.max(8, Math.min(y - height - 10, window.innerHeight - height - 8));
+        tooltip.style.left = `${Math.max(8, left)}px`;
+        tooltip.style.top = `${top}px`;
+      };
+
+      const showTooltip = (coords, when, rows) => {
         tooltip.replaceChildren(el("div", { class: "when" }, when));
         for (const [label, value, color, line] of rows) {
           const row = el("div", { class: "row" });
@@ -439,14 +808,7 @@
           tooltip.append(row);
         }
         tooltip.hidden = false;
-        const { width, height } = tooltip.getBoundingClientRect();
-        const left = Math.min(event.clientX + 14, window.innerWidth - width - 8);
-        const top = Math.max(
-          8,
-          Math.min(event.clientY - height - 10, window.innerHeight - height - 8),
-        );
-        tooltip.style.left = `${Math.max(8, left)}px`;
-        tooltip.style.top = `${top}px`;
+        positionTooltip(coords.x, coords.y);
       };
       const hideTooltip = () => {
         tooltip.hidden = true;
@@ -541,6 +903,7 @@
             fill: "transparent",
             tabindex: totals[index] > 0 ? 0 : -1,
           });
+          const when = formatDateTime(bucket.start, false);
           const rows = () =>
             CLASSES.map(([id, label, color]) => [
               label,
@@ -549,9 +912,14 @@
               false,
             ]);
           hit.addEventListener("pointermove", (event) =>
-            showTooltip(event, clock(bucket.start, summary.bucketMs), rows()),
+            showTooltip({ x: event.clientX, y: event.clientY }, when, rows()),
           );
+          hit.addEventListener("focus", () => {
+            const rect = hit.getBoundingClientRect();
+            showTooltip({ x: rect.left + rect.width / 2, y: rect.top }, when, rows());
+          });
           hit.addEventListener("pointerleave", hideTooltip);
+          hit.addEventListener("blur", hideTooltip);
           svg.append(hit);
         });
         svg.setAttribute(
@@ -633,8 +1001,8 @@
           cross.setAttribute("x2", x(index));
           cross.setAttribute("visibility", "visible");
           showTooltip(
-            event,
-            clock(bucket.start, summary.bucketMs),
+            { x: event.clientX, y: event.clientY },
+            formatDateTime(bucket.start, false),
             LINES.map(([id, label, color]) => [label, ms(bucket[id]), color, true]),
           );
         });
@@ -662,25 +1030,30 @@
         );
       };
 
-      const table = (host, columns, rows, emptyText) => {
+      const table = (host, columns, rows, emptyText, rowBuilder) => {
+        const thead = el("thead");
         const head = el("tr");
         for (const [label, numeric] of columns)
           head.append(el("th", numeric ? { class: "num" } : {}, label));
-        const body = rows.map((cells) => {
-          const row = el("tr");
-          cells.forEach((cell, index) => {
-            const td = el("td", columns[index][1] ? { class: "num" } : {});
-            td.append(cell instanceof Node ? cell : String(cell));
-            row.append(td);
-          });
-          return row;
-        });
+        thead.append(head);
+        const tbody = el("tbody");
         if (rows.length === 0) {
           const row = el("tr");
           row.append(el("td", { colspan: columns.length, class: "empty" }, emptyText));
-          body.push(row);
+          tbody.append(row);
+        } else {
+          rows.forEach((cells, rowIndex) => {
+            const row = el("tr");
+            if (rowBuilder) rowBuilder(row, rowIndex);
+            cells.forEach((cell, index) => {
+              const td = el("td", columns[index][1] ? { class: "num" } : {});
+              td.append(cell instanceof Node ? cell : String(cell));
+              row.append(td);
+            });
+            tbody.append(row);
+          });
         }
-        host.replaceChildren(head, ...body);
+        host.replaceChildren(thead, tbody);
       };
 
       const meter = (pool) => {
@@ -699,8 +1072,8 @@
         return bar;
       };
 
-      const tile = (label, value, sub) => {
-        const card = el("div", { class: "card tile" });
+      const tile = (label, value, sub, alert = false) => {
+        const card = el("div", { class: alert ? "card tile alert" : "card tile" });
         card.append(
           el("div", { class: "label" }, label),
           el("div", { class: "value" }, value),
@@ -709,7 +1082,83 @@
         return card;
       };
 
+      const copyButton = (id) => {
+        const button = el(
+          "button",
+          { type: "button", class: "copy-id", title: `Copy request ID: ${id}` },
+          id.slice(0, 8),
+        );
+        button.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(id).catch(() => undefined);
+          button.textContent = "Copied";
+          setTimeout(() => {
+            button.textContent = id.slice(0, 8);
+          }, 1200);
+        });
+        return button;
+      };
+
+      const timeCell = (epochMs) => {
+        const iso = new Date(epochMs).toISOString();
+        return el("time", { datetime: iso, title: iso }, formatDateTime(epochMs, true));
+      };
+
+      const renderRecent = (summary) => {
+        const query = state.logQuery.trim().toLowerCase();
+        const filtered = summary.recent.filter((event) => {
+          if (state.logClass !== "" && classifyEvent(event) !== state.logClass) return false;
+          if (query === "") return true;
+          const haystack =
+            `${event.tenant} ${event.outcome} ${event.model ?? ""} ${event.status} ${event.requestId}`.toLowerCase();
+          return haystack.includes(query);
+        });
+        $("recent-count").textContent =
+          filtered.length === summary.recent.length
+            ? `${whole.format(summary.recent.length)} most recent`
+            : `Showing ${whole.format(filtered.length)} of ${whole.format(summary.recent.length)}`;
+        table(
+          $("recent"),
+          [
+            ["Date & time"],
+            ["Tenant"],
+            ["Kind"],
+            ["Outcome"],
+            ["Status", true],
+            ["Model"],
+            ["Response", true],
+            ["First text", true],
+            ["Tokens in", true],
+            ["Cached", true],
+            ["Tokens out", true],
+            ["Cost", true],
+            ["Request"],
+          ],
+          filtered.map((event) => {
+            const cls = classifyEvent(event);
+            return [
+              timeCell(event.at),
+              el("span", { class: "mono" }, event.tenant),
+              event.evaluated ? el("span", { class: "pill eval" }, "eval") : "",
+              el("span", { class: `pill ${cls}` }, event.outcome),
+              event.status,
+              el("span", { class: "mono" }, event.model ?? "–"),
+              ms(event.latencyMs),
+              ms(event.ttftMs),
+              whole.format(event.inputTokens),
+              whole.format(event.cacheReadTokens),
+              whole.format(event.outputTokens),
+              euros(event.costNanoEur),
+              copyButton(event.requestId),
+            ];
+          }),
+          summary.recent.length === 0
+            ? "Nothing in this window."
+            : "No recent requests match the current filter.",
+        );
+      };
+
       const render = (summary) => {
+        state.lastSummary = summary;
         const { totals } = summary;
         const shown =
           state.tenant === ""
@@ -727,6 +1176,7 @@
             "Answered",
             percent(totals.requests === 0 ? null : totals.counts.answered / totals.requests),
             `${whole.format(totals.counts.failed)} failed`,
+            totals.counts.failed > 0,
           ),
           tile("Response time", ms(totals.latencyP50), `95th percentile ${ms(totals.latencyP95)}`),
           tile("First text", ms(totals.ttftP50), `95th percentile ${ms(totals.ttftP95)}`),
@@ -748,72 +1198,56 @@
             ["Reserved", true],
             ["Pool", true],
             ["Used"],
-            ["Accepting"],
+            ["Status"],
           ],
           shown.map((entry) => [
             entry.name,
-            entry.tier,
+            el("span", { class: "mono" }, entry.tier),
             euros(entry.pool.spentNanoEur),
             euros(entry.pool.reservedNanoEur),
             euros(entry.pool.poolNanoEur),
             meter(entry.pool),
-            entry.pool.accepting ? "Yes" : "Paused",
+            el(
+              "span",
+              { class: entry.pool.accepting ? "pill ok" : "pill paused" },
+              entry.pool.accepting ? "Accepting" : "Paused",
+            ),
           ]),
-          "No tenants yet. Add one with the admin API.",
+          "No tenants yet. Add one on the Tenants page or via the admin API.",
+          (row, rowIndex) => {
+            const entry = shown[rowIndex];
+            row.className = state.tenant === entry.id ? "clickable active" : "clickable";
+            row.title =
+              state.tenant === entry.id ? "Click to show all tenants" : `Filter to ${entry.name}`;
+            row.addEventListener("click", () => {
+              state.tenant = state.tenant === entry.id ? "" : entry.id;
+              $("tenant").value = state.tenant;
+              load();
+            });
+          },
         );
         table(
           $("outcomes"),
           [["Outcome"], ["Requests", true], ["Share", true]],
           summary.outcomes.map((entry) => [
-            entry.outcome,
+            el("span", { class: "mono" }, entry.outcome),
             whole.format(entry.count),
             percent(entry.count / totals.requests),
           ]),
           "Nothing in this window.",
         );
-        table(
-          $("recent"),
-          [
-            ["Time"],
-            ["Tenant"],
-            ["Kind"],
-            ["Outcome"],
-            ["Status", true],
-            ["Model"],
-            ["Response", true],
-            ["First text", true],
-            ["Tokens in", true],
-            ["Cached", true],
-            ["Tokens out", true],
-            ["Cost", true],
-            ["Request"],
-          ],
-          summary.recent.map((event) => [
-            new Date(event.at).toLocaleTimeString("en"),
-            event.tenant,
-            event.evaluated ? "eval" : "",
-            event.outcome,
-            event.status,
-            event.model ?? "–",
-            ms(event.latencyMs),
-            ms(event.ttftMs),
-            whole.format(event.inputTokens),
-            whole.format(event.cacheReadTokens),
-            whole.format(event.outputTokens),
-            euros(event.costNanoEur),
-            event.requestId.slice(0, 8),
-          ]),
-          "Nothing in this window.",
-        );
-        const select = $("tenant");
-        if (select.options.length !== summary.tenants.length + 1) {
+        renderRecent(summary);
+        const signature = summary.tenants.map((entry) => `${entry.id}:${entry.name}`).join("\n");
+        if (signature !== state.tenantSignature) {
+          state.tenantSignature = signature;
+          const select = $("tenant");
           select.replaceChildren(
             el("option", { value: "" }, "All tenants"),
             ...summary.tenants.map((entry) => el("option", { value: entry.id }, entry.name)),
           );
           select.value = state.tenant;
         }
-        $("updated").textContent = `Updated ${new Date().toLocaleTimeString("en")}`;
+        $("updated").textContent = `Updated ${formatDateTime(Date.now(), true)}`;
       };
 
       const token = () => sessionStorage.getItem("admin-token") ?? "";
@@ -857,7 +1291,9 @@
 
       const schedule = () => {
         clearInterval(state.timer);
-        if ($("auto").checked) state.timer = setInterval(load, 10000);
+        const active = $("auto").checked;
+        $("live-dot").classList.toggle("paused", !active);
+        if (active) state.timer = setInterval(load, 10000);
       };
 
       $("ranges").replaceChildren(
@@ -876,6 +1312,26 @@
           return button;
         }),
       );
+      $("log-classes").replaceChildren(
+        ...[["", "All"], ...CLASSES.map(([id, label]) => [id, label])].map(([id, label]) => {
+          const button = el(
+            "button",
+            { type: "button", "aria-pressed": String(id === state.logClass) },
+            label,
+          );
+          button.addEventListener("click", () => {
+            state.logClass = id;
+            for (const other of $("log-classes").children)
+              other.setAttribute("aria-pressed", String(other === button));
+            if (state.lastSummary !== null) renderRecent(state.lastSummary);
+          });
+          return button;
+        }),
+      );
+      $("log-search").addEventListener("input", (event) => {
+        state.logQuery = event.target.value;
+        if (state.lastSummary !== null) renderRecent(state.lastSummary);
+      });
       legend($("outcome-legend"), CLASSES, false);
       legend($("latency-legend"), LINES, true);
       $("tenant").addEventListener("change", (event) => {

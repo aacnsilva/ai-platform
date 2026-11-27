@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { classify, percentile, summarize } from "../src/observability/aggregate";
 import type { RunEvent } from "../src/observability/events";
+import { logEvent } from "../src/observability/log";
 
 const MINUTE = 60_000;
 
@@ -103,5 +104,20 @@ describe("aggregate", () => {
     expect(summary.totals.requests).toBe(50_000);
     expect(summary.recent).toHaveLength(50);
     expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it("includes an ISO date and time timestamp on every structured log event", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      const at = Date.UTC(2026, 10, 26, 16, 42, 15);
+      logEvent("run", { at, tenant: "demo" });
+      logEvent("unhandled", { message: "oops" });
+      const first = JSON.parse(String(spy.mock.calls[0]?.[0])) as Record<string, unknown>;
+      const second = JSON.parse(String(spy.mock.calls[1]?.[0])) as Record<string, unknown>;
+      expect(first["timestamp"]).toBe("2026-11-26T16:42:15.000Z");
+      expect(second["timestamp"]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

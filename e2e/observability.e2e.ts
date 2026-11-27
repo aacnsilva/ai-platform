@@ -92,6 +92,8 @@ describe("observability", () => {
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     const page = await response.text();
     expect(page).toContain("Enter the admin token");
+    expect(page).toContain("Date & time");
+    expect(page).not.toContain("toLocaleTimeString");
     expect(page).not.toContain("Lumen");
   });
 
