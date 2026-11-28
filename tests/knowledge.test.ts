@@ -124,4 +124,25 @@ describe("search", () => {
   it("returns nothing when nothing matches", () => {
     expect(searchChunks(chunks, { ...query, query: "submarine" })).toEqual([]);
   });
+
+  it("filters tagged passages when tags are given while keeping untagged passages visible", () => {
+    const tagged = [
+      chunk({ documentId: "global", text: "shared topic rules", tags: null }),
+      chunk({ documentId: "math", text: "shared topic functions", tags: ["math"] }),
+      chunk({ documentId: "grammar", text: "shared topic functions", tags: ["grammar"] }),
+    ];
+    expect(
+      searchChunks(tagged, { ...query, query: "shared topic", tags: ["math"] }).map(
+        (hit) => hit.documentId,
+      ),
+    ).toEqual(["global", "math"]);
+    expect(
+      searchChunks(tagged, { ...query, query: "shared topic", tags: ["grammar"] }).map(
+        (hit) => hit.documentId,
+      ),
+    ).toEqual(["global", "grammar"]);
+    expect(
+      searchChunks(tagged, { ...query, query: "shared topic" }).map((hit) => hit.documentId),
+    ).toHaveLength(3);
+  });
 });

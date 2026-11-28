@@ -26,13 +26,14 @@ export const toolRuntimeFor = (
     maxChars: tenant.agent.kind === "chat" ? tenant.agent.input.maxToolResultChars : 0,
     fetcher: async (input, init) => fetch(input, init),
     signal: context.abort.signal,
-    searchKnowledge: async (query) =>
+    searchKnowledge: async (query, tags) =>
       knowledge.search({
         query,
         plan: principal.planId,
         topK: tenant.knowledge?.topK ?? DEFAULT_TOP_K,
         embeddingModel: embedder?.model ?? null,
         queryVector: await queryVector(query),
+        ...(tags === undefined ? {} : { tags }),
       }),
   };
 };

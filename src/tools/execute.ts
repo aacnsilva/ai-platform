@@ -14,10 +14,24 @@ export interface ToolRuntime {
   maxChars: number;
   fetcher: typeof fetch;
   signal?: AbortSignal;
-  searchKnowledge: (query: string) => Promise<KnowledgeHit[]>;
+  searchKnowledge: (query: string, tags?: readonly string[]) => Promise<KnowledgeHit[]>;
 }
 
 const MAX_QUERY_CHARS = 400;
+const TAG_PATTERN = /^[a-z0-9][a-z0-9._-]{0,40}$/;
+
+const tagsOf = (input: Record<string, unknown>): string[] | undefined => {
+  const raw =
+    typeof input["tag"] === "string"
+      ? [input["tag"]]
+      : Array.isArray(input["tags"])
+        ? input["tags"].filter((entry): entry is string => typeof entry === "string")
+        : [];
+  const valid = [
+    ...new Set(raw.map((entry) => entry.trim()).filter((entry) => TAG_PATTERN.test(entry))),
+  ];
+  return valid.length > 0 ? valid : undefined;
+};
 
 export const definitionOf = (contract: Contract, call: ToolUseBlock): ToolDefinition | undefined =>
   contract.tools.find((tool) => tool.name === call.name);
@@ -42,7 +56,10 @@ const searchKnowledge = async (runtime: ToolRuntime, call: ToolUseBlock): Promis
   if (typeof query !== "string" || query.trim() === "") {
     return { content: "Give a query to search for.", isError: true };
   }
-  const hits = await runtime.searchKnowledge(query.trim().slice(0, MAX_QUERY_CHARS));
+  const hits = await runtime.searchKnowledge(
+    query.trim().slice(0, MAX_QUERY_CHARS),
+    tagsOf(call.input),
+  );
   const packed = packHits(hits, runtime.maxChars);
   return {
     content: packed === "" ? "Nothing in the knowledge base matched." : packed,

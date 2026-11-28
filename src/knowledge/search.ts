@@ -5,6 +5,7 @@ export interface StoredChunk {
   title: string;
   text: string;
   plans: string[] | null;
+  tags?: readonly string[] | null;
   model: string | null;
   vector: Float32Array | null;
   tokens?: readonly string[];
@@ -13,6 +14,7 @@ export interface StoredChunk {
 export interface SearchInput {
   query: string;
   plan: string | null;
+  tags?: readonly string[];
   topK: number;
   embeddingModel: string | null;
   queryVector: number[] | null;
@@ -26,8 +28,17 @@ export interface Hit {
 
 const MIN_SIMILARITY = 0.2;
 
-const isVisible = (chunk: StoredChunk, plan: string | null): boolean =>
-  chunk.plans === null || (plan !== null && chunk.plans.includes(plan));
+const matchesTags = (chunk: StoredChunk, tags: readonly string[] | undefined): boolean =>
+  tags === undefined ||
+  tags.length === 0 ||
+  chunk.tags === undefined ||
+  chunk.tags === null ||
+  chunk.tags.length === 0 ||
+  chunk.tags.some((tag) => tags.includes(tag));
+
+const isVisible = (chunk: StoredChunk, input: SearchInput): boolean =>
+  (chunk.plans === null || (input.plan !== null && chunk.plans.includes(input.plan))) &&
+  matchesTags(chunk, input.tags);
 
 const vectorScores = (chunks: readonly StoredChunk[], input: SearchInput): number[] =>
   chunks.map((chunk) => {
@@ -38,7 +49,7 @@ const vectorScores = (chunks: readonly StoredChunk[], input: SearchInput): numbe
   });
 
 export const searchChunks = (chunks: readonly StoredChunk[], input: SearchInput): Hit[] => {
-  const visible = chunks.filter((chunk) => isVisible(chunk, input.plan));
+  const visible = chunks.filter((chunk) => isVisible(chunk, input));
   const keyword = bm25(
     tokenize(input.query),
     visible.map((chunk) => chunk.tokens ?? tokenize(`${chunk.title} ${chunk.text}`)),

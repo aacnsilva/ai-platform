@@ -38,6 +38,19 @@ const search = async (tenant: CreatedTenant, asker: Asker, query: string): Promi
     ),
   );
 
+const searchTagged = async (
+  tenant: CreatedTenant,
+  asker: Asker,
+  input: { query: string; tag: string },
+): Promise<string> =>
+  textOf(
+    await post(
+      tenant.id,
+      await tokenFor(tenant, asker.subject, asker.plan),
+      turn(`TOOLCALL search_knowledge json=${JSON.stringify(input)}`),
+    ),
+  );
+
 const BRAKES = {
   title: "Brake pads",
   text: "# Brake pads\n\nCheck the pads for wear every month. MARKER-BRAKES\n\nReplace them below one millimetre.",
@@ -193,5 +206,45 @@ describe("knowledge retrieval per tenant", () => {
       ).status,
     ).toBe(200);
     expect((await (await documents(temp, "")).json()) as unknown[]).toEqual([]);
+  });
+
+  it("filters search results by tag while keeping untagged documents visible", async () => {
+    const tagged = await createChatTenant({ state: "stored", tools: serverTools() });
+    await putDocument(tagged, "shared-rules", {
+      title: "Shared rules",
+      text: "Functions appear across exams. MARKER-GLOBAL",
+    });
+    await putDocument(tagged, "math-doc", {
+      title: "Math functions",
+      text: "Functions in calculus have derivatives. MARKER-MATH",
+      tags: ["math"],
+    });
+    await putDocument(tagged, "grammar-doc", {
+      title: "Syntactic functions",
+      text: "Functions in syntax include subject and predicate. MARKER-GRAMMAR",
+      tags: ["grammar"],
+    });
+
+    const mathReply = await searchTagged(
+      tagged,
+      { subject: "k-tag-1", plan: "basic" },
+      { query: "functions", tag: "math" },
+    );
+    expect(mathReply).toContain("MARKER-MATH");
+    expect(mathReply).toContain("MARKER-GLOBAL");
+    expect(mathReply).not.toContain("MARKER-GRAMMAR");
+
+    const grammarReply = await searchTagged(
+      tagged,
+      { subject: "k-tag-2", plan: "basic" },
+      { query: "functions", tag: "grammar" },
+    );
+    expect(grammarReply).toContain("MARKER-GRAMMAR");
+    expect(grammarReply).not.toContain("MARKER-MATH");
+
+    const stored = (await (await documents(tagged, "/math-doc")).json()) as {
+      tags: string[] | null;
+    };
+    expect(stored.tags).toEqual(["math"]);
   });
 });

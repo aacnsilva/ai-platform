@@ -20,6 +20,10 @@ const documentSchema = z.object({
     .array(z.string().regex(/^[a-z][a-z0-9_-]{0,30}$/))
     .max(20)
     .optional(),
+  tags: z
+    .array(z.string().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/))
+    .max(20)
+    .optional(),
 });
 
 const hex = (bytes: ArrayBuffer): string =>
@@ -89,11 +93,14 @@ const putDocument = async (request: Request, target: Target): Promise<Response> 
   }
   const chunks = chunkText(document.text, chunkChars);
   const embedded = await vectorsFor(env, tenant, chunks);
+  const tags =
+    document.tags !== undefined && document.tags.length > 0 ? [...new Set(document.tags)] : null;
   await store.put({
     id: documentId,
     title: document.title,
     hash,
     plans: document.plans ?? null,
+    tags,
     model: embedded.model,
     chunks: chunks.map((text, index) => ({ text, vector: embedded.vectors[index] ?? null })),
   });

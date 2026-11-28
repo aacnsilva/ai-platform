@@ -10,6 +10,7 @@ export interface DocumentInput {
   title: string;
   hash: string;
   plans: string[] | null;
+  tags: string[] | null;
   model: string | null;
   chunks: { text: string; vector: number[] | null }[];
 }
@@ -19,6 +20,7 @@ export interface DocumentSummary {
   title: string;
   hash: string;
   plans: string[] | null;
+  tags: string[] | null;
   chunks: number;
   embedded: boolean;
   updatedAt: number;
@@ -33,29 +35,36 @@ type Row = Record<string, SqlStorageValue>;
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY, title TEXT NOT NULL, hash TEXT NOT NULL, plans TEXT,
-    model TEXT, updated_at INTEGER NOT NULL)`,
+    tags TEXT, model TEXT, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS chunks (
     document_id TEXT NOT NULL, seq INTEGER NOT NULL, text TEXT NOT NULL, vector BLOB,
     PRIMARY KEY (document_id, seq))`,
 ];
-const SELECT_CHUNKS = `SELECT c.document_id, c.text, c.vector, d.title, d.plans, d.model
+const SELECT_CHUNKS = `SELECT c.document_id, c.text, c.vector, d.title, d.plans, d.tags, d.model
   FROM chunks c JOIN documents d ON d.id = c.document_id ORDER BY c.document_id, c.seq`;
-const SELECT_DOCUMENTS = `SELECT d.id, d.title, d.hash, d.plans, d.model, d.updated_at,
+const SELECT_DOCUMENTS = `SELECT d.id, d.title, d.hash, d.plans, d.tags, d.model, d.updated_at,
   (SELECT COUNT(*) FROM chunks c WHERE c.document_id = d.id) AS chunk_count
   FROM documents d ORDER BY d.id`;
-const SELECT_ONE = `SELECT d.id, d.title, d.hash, d.plans, d.model, d.updated_at,
+const SELECT_ONE = `SELECT d.id, d.title, d.hash, d.plans, d.tags, d.model, d.updated_at,
   (SELECT COUNT(*) FROM chunks c WHERE c.document_id = d.id) AS chunk_count
   FROM documents d WHERE d.id = ?`;
 
 const textOf = (value: SqlStorageValue | undefined): string =>
   typeof value === "string" ? value : "";
 
-const plansOf = (value: SqlStorageValue | undefined): string[] | null => {
+const stringListOf = (value: SqlStorageValue | undefined): string[] | null => {
   if (typeof value !== "string") {
     return null;
   }
   const parsed: unknown = JSON.parse(value);
-  return Array.isArray(parsed) ? parsed.filter((plan) => typeof plan === "string") : null;
+  return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === "string") : null;
+};
+
+const ensureTagsColumn = (sql: SqlStorage): void => {
+  const columns = sql.exec<Row>("PRAGMA table_info(documents)").toArray();
+  if (!columns.some((column) => column["name"] === "tags")) {
+    sql.exec("ALTER TABLE documents ADD COLUMN tags TEXT");
+  }
 };
 
 const chunkOf = (row: Row): StoredChunk => {
@@ -65,7 +74,8 @@ const chunkOf = (row: Row): StoredChunk => {
     documentId: textOf(row["document_id"]),
     title,
     text,
-    plans: plansOf(row["plans"]),
+    plans: stringListOf(row["plans"]),
+    tags: stringListOf(row["tags"]),
     model: typeof row["model"] === "string" ? row["model"] : null,
     vector: row["vector"] instanceof ArrayBuffer ? new Float32Array(row["vector"]) : null,
     tokens: tokenize(`${title} ${text}`),
@@ -76,7 +86,8 @@ const summaryOf = (row: Row): DocumentSummary => ({
   id: textOf(row["id"]),
   title: textOf(row["title"]),
   hash: textOf(row["hash"]),
-  plans: plansOf(row["plans"]),
+  plans: stringListOf(row["plans"]),
+  tags: stringListOf(row["tags"]),
   chunks: typeof row["chunk_count"] === "number" ? row["chunk_count"] : 0,
   embedded: typeof row["model"] === "string",
   updatedAt: typeof row["updated_at"] === "number" ? row["updated_at"] : 0,
@@ -90,6 +101,7 @@ export class Knowledge extends DurableObject<Env> {
     for (const statement of SCHEMA) {
       ctx.storage.sql.exec(statement);
     }
+    ensureTagsColumn(ctx.storage.sql);
   }
 
   hashOf(id: string): string | null {
@@ -118,11 +130,12 @@ export class Knowledge extends DurableObject<Env> {
     this.ctx.storage.transactionSync(() => {
       sql.exec("DELETE FROM chunks WHERE document_id = ?", document.id);
       sql.exec(
-        "INSERT OR REPLACE INTO documents VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO documents (id, title, hash, plans, tags, model, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         document.id,
         document.title,
         document.hash,
         document.plans === null ? null : JSON.stringify(document.plans),
+        document.tags === null ? null : JSON.stringify(document.tags),
         document.model,
         Date.now(),
       );

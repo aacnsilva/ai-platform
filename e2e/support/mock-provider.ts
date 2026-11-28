@@ -27,7 +27,7 @@ export interface MockProvider {
 
 interface ToolCall {
   name: string;
-  input: Record<string, string>;
+  input: Record<string, unknown>;
 }
 
 interface Scenario {
@@ -115,7 +115,11 @@ const toolCallFor = (question: string, rounds: number): ToolCall | null => {
     return null;
   }
   const input =
-    match[2] === undefined || match[3] === undefined ? {} : { [match[2]]: match[3].trim() };
+    match[2] === undefined || match[3] === undefined
+      ? {}
+      : match[2] === "json"
+        ? (JSON.parse(match[3].trim()) as Record<string, unknown>)
+        : { [match[2]]: match[3].trim() };
   return { name: match[1], input };
 };
 
